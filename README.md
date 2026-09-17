@@ -55,4 +55,4 @@ Issues and pull requests are welcome! If you find a bug or have a feature idea, 
 This is my first ever coding project, built from scratch with no prior coding experience —
 with the help of Claude AI as my coding assistant.
 
-With Lo❤️e, RR
+With Lo❤️e, R.R
