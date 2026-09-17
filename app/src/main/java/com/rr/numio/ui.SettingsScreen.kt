@@ -1,5 +1,5 @@
 package com.rr.numio.ui
-import androidx.compose.ui.platform.LocalContext
+
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
@@ -18,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -109,7 +110,6 @@ fun SettingsScreen(
             )
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Preset color grid
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -123,7 +123,7 @@ fun SettingsScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceEvenly
                         ) {
-                            rowColors.forEach { (hex, name) ->
+                            rowColors.forEach { (hex, _) ->
                                 val isSelected = hex.uppercase() == accentColor.uppercase()
                                 Box(
                                     modifier = Modifier
@@ -139,14 +139,18 @@ fun SettingsScreen(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     if (isSelected) {
-                                        Text("✓", color = Color.Black, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                        Text(
+                                            "✓",
+                                            color = Color.Black,
+                                            fontSize = 18.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
                                     }
                                 }
                             }
                         }
                     }
 
-                    // Custom hex input
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "Custom hex color",
@@ -227,7 +231,7 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text("Version", color = NumioTextOnDark, fontSize = 15.sp)
-                        Text("1.0.0", color = NumioTextMuted, fontSize = 15.sp)
+                        Text("1.0.1", color = NumioTextMuted, fontSize = 15.sp)
                     }
 
                     HorizontalDivider(color = NumioTextMuted.copy(alpha = 0.2f))
@@ -237,9 +241,12 @@ fun SettingsScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/rag-creation/numio"))
+                                val intent = Intent(
+                                    Intent.ACTION_VIEW,
+                                    Uri.parse("https://github.com/rag-creation/numio")
+                                )
                                 context.startActivity(intent)
-                            }
+                            },
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -259,9 +266,12 @@ fun SettingsScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/rag-creation/numio/issues"))
+                                val intent = Intent(
+                                    Intent.ACTION_VIEW,
+                                    Uri.parse("https://github.com/rag-creation/numio/issues")
+                                )
                                 context.startActivity(intent)
-                            }
+                            },
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
