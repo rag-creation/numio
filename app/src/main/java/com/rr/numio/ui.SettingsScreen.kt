@@ -1,5 +1,7 @@
 package com.rr.numio.ui
-
+import androidx.compose.ui.platform.LocalContext
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -56,7 +58,7 @@ fun SettingsScreen(
     val NumioTextOnDark = Color(0xFFF2EFE9)
     val NumioTextMuted = Color(0xFF9C9578)
     val accent = hexToColor(accentColor)
-
+    val context = LocalContext.current
     var customHex by remember { mutableStateOf("") }
     var customError by remember { mutableStateOf(false) }
 
@@ -234,7 +236,10 @@ fun SettingsScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { /* TODO: open GitHub URL */ },
+                            .clickable {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/rag-creation/numio"))
+                                context.startActivity(intent)
+                            }
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -253,7 +258,10 @@ fun SettingsScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { /* TODO: open GitHub issues URL */ },
+                            .clickable {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/rag-creation/numio/issues"))
+                                context.startActivity(intent)
+                            }
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
