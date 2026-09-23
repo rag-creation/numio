@@ -3,10 +3,31 @@
 A clean, minimal, open-source Android calculator app built with Kotlin & Jetpack Compose.
 No ads. No tracking. No internet permission. Just a calculator.
 
+
+
 ![Platform](https://img.shields.io/badge/Platform-Android-green)
+
+
+
+
 ![License](https://img.shields.io/badge/License-GPL--3.0-blue)
+
+
+
+
 ![Kotlin](https://img.shields.io/badge/Kotlin-100%25-purple)
+
+
+
+
 ![Min SDK](https://img.shields.io/badge/Min%20SDK-24-orange)
+
+
+
+
+![Release](https://img.shields.io/github/v/release/rag-creation/numio)
+
+
 
 ## Features
 
@@ -21,17 +42,29 @@ No ads. No tracking. No internet permission. Just a calculator.
 - ✅ A little easter egg 🤫
 - ✅ 100% offline — nothing ever leaves your device
 
-## Requirements
-
-- Android 7.0 (API 24) or higher
-
 ## Screenshots
 
-*Coming soon*
+<p align="center">
+  <img src="screenshots/Numio1.jpg" width="200" />
+  <img src="screenshots/Numio2.jpg" width="200" />
+  <img src="screenshots/Numio3.jpg" width="200" />
+  <img src="screenshots/Numio4.jpg" width="200" />
+</p>
+<p align="center">
+  <img src="screenshots/Numio5.jpg" width="200" />
+  <img src="screenshots/Numio6.jpg" width="200" />
+  <img src="screenshots/Numio7.jpg" width="200" />
+</p>
 
 ## Download
 
-*Coming soon — F-Droid submission in progress*
+Get the latest APK from [Releases](https://github.com/rag-creation/numio/releases/latest).
+
+F-Droid version coming soon.
+
+## Requirements
+
+- Android 7.0 (API 24) or higher
 
 ## Built With
 
