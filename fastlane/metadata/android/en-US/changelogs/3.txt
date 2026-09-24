@@ -1,0 +1,4 @@
+F-Droid preparation release
+
+- Fixed versionCode/versionName mismatch
+- Disabled dependenciesInfo block for F-Droid compatibility
