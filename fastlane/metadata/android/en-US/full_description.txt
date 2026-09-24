@@ -1,0 +1,16 @@
+Numio is a clean, minimal calculator built with Kotlin and Jetpack Compose. No ads, no tracking, no internet permission — it never needs to talk to the outside world.
+
+Features:
+
+* Clean, minimal design with retro circular keys
+* Live results — see the answer as you type
+* Scrollable expression display, so long numbers are never truncated
+* Calculation history saved locally with a Room database
+* Built-in unit converter — Length, Weight, Area, Volume, Temperature, Time, Speed, Pressure
+* Theme customization — 12 preset accent colors plus custom hex input
+* Your chosen theme color is remembered across sessions
+* Hand-drawn custom app icon
+* A small hidden easter egg
+* 100% offline — nothing ever leaves your device
+
+This is a first solo project, built from scratch and open-sourced so anyone can use, inspect, or contribute to it.
