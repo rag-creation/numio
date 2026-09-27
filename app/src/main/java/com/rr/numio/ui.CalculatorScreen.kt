@@ -1,5 +1,6 @@
 package com.rr.numio.ui
 
+import android.annotation.SuppressLint
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
@@ -38,6 +39,7 @@ private val NumioRed = Color(0xFFE8452F)
 private val NumioTextMuted = Color(0xFF9C9578)
 private val NumioTextOnDark = Color(0xFFF2EFE9)
 
+@SuppressLint("UnusedBoxWithConstraintsScope")
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CalculatorScreen(
@@ -71,6 +73,7 @@ fun CalculatorScreen(
             .fillMaxSize()
             .background(NumioBg)
             .statusBarsPadding()
+            .navigationBarsPadding()
             .padding(horizontal = 16.dp)
     ) {
         // Top bar
@@ -148,10 +151,10 @@ fun CalculatorScreen(
             }
         }
 
-        // Display card
+        // Display card — takes all space the keypad doesn't use
         Box(
             modifier = Modifier
-                .weight(0.28f)
+                .weight(1f)
                 .fillMaxWidth()
                 .padding(vertical = 12.dp)
                 .clip(RoundedCornerShape(28.dp))
@@ -167,9 +170,11 @@ fun CalculatorScreen(
                 LaunchedEffect(uiState.expression) {
                     exprScrollState.animateScrollTo(exprScrollState.maxValue)
                 }
+                // Expression — bigger and right-aligned
                 Text(
                     text = uiState.expression.ifEmpty { "0" },
-                    fontSize = 36.sp,
+                    fontSize = 48.sp,
+                    textAlign = TextAlign.End,
                     maxLines = 1,
                     overflow = TextOverflow.Clip,
                     color = Color(0xFFCCBF8A),
@@ -179,10 +184,12 @@ fun CalculatorScreen(
                 )
                 if (uiState.result.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(4.dp))
+                    // Result — right-aligned, shrinks for long numbers
                     Text(
                         text = uiState.result,
-                        fontSize = 58.sp,
+                        fontSize = resultFontSize(uiState.result.length),
                         fontWeight = FontWeight.Light,
+                        textAlign = TextAlign.End,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         color = NumioTextOnDark,
@@ -199,72 +206,65 @@ fun CalculatorScreen(
             }
         }
 
-        // Keypad
-        Column(
+        // Keypad — perfectly round keys
+        BoxWithConstraints(
             modifier = Modifier
-                .weight(0.72f)
                 .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .padding(bottom = 16.dp)
         ) {
-            keys.forEach { row ->
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    row.forEach { (label, type) ->
-                        CircleKey(
-                            label = label,
-                            type = type,
-                            accent = accent,
-                            accentLight = NumioYellowLight,
-                            modifier = Modifier
-                                .weight(1f)
-                                .fillMaxHeight(),
-                            onClick = { viewModel.onKeyPress(label) }
-                        )
+            val gap = 12.dp
+            // Size keys by width, but cap by height so landscape still fits
+            val byWidth = (maxWidth - gap * 3) / 4
+            val byHeight = (maxHeight * 0.65f - gap * 4) / 5
+            val keySize = minOf(byWidth, byHeight)
+
+            Column(
+                verticalArrangement = Arrangement.spacedBy(gap),
+                modifier = Modifier.align(Alignment.Center)
+            ) {
+                keys.forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                        row.forEach { (label, type) ->
+                            CircleKey(
+                                label = label,
+                                type = type,
+                                accent = accent,
+                                accentLight = NumioYellowLight,
+                                modifier = Modifier.size(keySize),
+                                onClick = { viewModel.onKeyPress(label) }
+                            )
+                        }
                     }
                 }
-            }
-            Row(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                CircleKey(
-                    label = "0",
-                    type = KeyType.NUM,
-                    accent = accent,
-                    accentLight = NumioYellowLight,
-                    modifier = Modifier
-                        .weight(2f)
-                        .fillMaxHeight(),
-                    shape = RoundedCornerShape(999.dp),
-                    onClick = { viewModel.onKeyPress("0") }
-                )
-                CircleKey(
-                    label = ".",
-                    type = KeyType.NUM,
-                    accent = accent,
-                    accentLight = NumioYellowLight,
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight(),
-                    onClick = { viewModel.onKeyPress(".") }
-                )
-                CircleKey(
-                    label = "=",
-                    type = KeyType.EQUAL,
-                    accent = accent,
-                    accentLight = NumioYellowLight,
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight(),
-                    onClick = { viewModel.onKeyPress("=") }
-                )
+                Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                    CircleKey(
+                        label = "0",
+                        type = KeyType.NUM,
+                        accent = accent,
+                        accentLight = NumioYellowLight,
+                        modifier = Modifier
+                            .width(keySize * 2 + gap)
+                            .height(keySize),
+                        shape = RoundedCornerShape(999.dp),
+                        onClick = { viewModel.onKeyPress("0") }
+                    )
+                    CircleKey(
+                        label = ".",
+                        type = KeyType.NUM,
+                        accent = accent,
+                        accentLight = NumioYellowLight,
+                        modifier = Modifier.size(keySize),
+                        onClick = { viewModel.onKeyPress(".") }
+                    )
+                    CircleKey(
+                        label = "=",
+                        type = KeyType.EQUAL,
+                        accent = accent,
+                        accentLight = NumioYellowLight,
+                        modifier = Modifier.size(keySize),
+                        onClick = { viewModel.onKeyPress("=") }
+                    )
+                }
             }
         }
     }
@@ -389,7 +389,8 @@ private fun CircleKey(
         KeyType.CLEAR_ALL -> Color.White
         KeyType.EQUAL -> NumioBg
     }
-    val fontSize = if (label == "AC" || label == "C") 15.sp else 26.sp
+    // Bigger labels: AC/⌫ 15 → 18, digits and operators 26 → 32
+    val fontSize = if (label == "AC" || label == "C") 18.sp else 32.sp
     val fontWeight = if (label == "AC" || label == "C") FontWeight.Bold else FontWeight.Medium
 
     Button(
@@ -455,4 +456,12 @@ private fun HistorySheetContent(
             }
         }
     }
+}
+
+// Result text shrinks as the number gets longer, so it never gets cut off
+private fun resultFontSize(length: Int) = when {
+    length <= 8 -> 58.sp
+    length <= 12 -> 46.sp
+    length <= 16 -> 36.sp
+    else -> 28.sp
 }

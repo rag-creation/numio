@@ -2,6 +2,7 @@ package com.rr.numio.ui
 
 import android.content.Intent
 import android.net.Uri
+import com.rr.numio.BuildConfig
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -231,7 +232,7 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text("Version", color = NumioTextOnDark, fontSize = 15.sp)
-                        Text("1.0.1", color = NumioTextMuted, fontSize = 15.sp)
+                        Text(BuildConfig.VERSION_NAME, color = NumioTextMuted, fontSize = 15.sp)
                     }
 
                     HorizontalDivider(color = NumioTextMuted.copy(alpha = 0.2f))

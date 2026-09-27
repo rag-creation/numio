@@ -50,11 +50,6 @@ No ads. No tracking. No internet permission. Just a calculator.
   <img src="screenshots/Numio3.jpg" width="200" />
   <img src="screenshots/Numio4.jpg" width="200" />
 </p>
-<p align="center">
-  <img src="screenshots/Numio5.jpg" width="200" />
-  <img src="screenshots/Numio6.jpg" width="200" />
-  <img src="screenshots/Numio7.jpg" width="200" />
-</p>
 
 ## Download
 
