@@ -1,0 +1,5 @@
+- History now opens as an in-screen panel (fixes a blank screen on some devices)
+- Pressing an operator after another one now replaces it (8-+ becomes 8+)
+- Fixed percent followed by a number (5%3 now gives 0.15)
+- Only one decimal point per number
+- Reusing a history result with an operator now works correctly

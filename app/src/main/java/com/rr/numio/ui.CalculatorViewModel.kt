@@ -62,18 +62,47 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
             "=" -> evaluate()
             else -> {
                 val isOperator = label in operators
-                val newExpression = when {
-                    justEvaluated && isOperator -> current.result + label
-                    justEvaluated -> label
-                    else -> current.expression + label
+                val base = when {
+                    justEvaluated && isOperator ->
+                        if (current.result.isNotEmpty() && current.result != "Error") current.result
+                        else current.expression
+                    justEvaluated -> ""
+                    else -> current.expression
                 }
                 justEvaluated = false
+                val newExpression = appendInput(base, label)
                 val liveResult = evaluatePreview(newExpression)
                 _uiState.value = current.copy(expression = newExpression, result = liveResult)
             }
         }
     }
+    private val binaryOps = setOf("+", "-", "×", "÷", "^")
 
+    private fun appendInput(expr: String, label: String): String {
+        val last = expr.lastOrNull()?.toString()
+        return when {
+            label in binaryOps -> {
+                if (label == "-" && (last == null || last in setOf("×", "÷", "^"))) {
+                    return expr + "-"
+                }
+                val trimmed = expr.trimEnd { it.toString() in binaryOps || it == '.' }
+                if (trimmed.isEmpty()) expr else trimmed + label
+            }
+            label == "%" -> {
+                val trimmed = expr.trimEnd { it.toString() in binaryOps || it == '.' }
+                if (trimmed.isEmpty() || trimmed.last() == '%') expr else "$trimmed%"
+            }
+            label == "." -> {
+                val currentNumber = expr.takeLastWhile { it.isDigit() || it == '.' }
+                when {
+                    '.' in currentNumber -> expr
+                    currentNumber.isEmpty() -> expr + (if (last == "%") "×0." else "0.")
+                    else -> "$expr."
+                }
+            }
+            else -> if (last == "%") "$expr×$label" else expr + label
+        }
+    }
     fun toggleHistory() {
         _uiState.value = _uiState.value.copy(isHistoryVisible = !_uiState.value.isHistoryVisible)
     }

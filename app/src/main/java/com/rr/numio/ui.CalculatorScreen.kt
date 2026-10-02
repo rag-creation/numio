@@ -1,11 +1,13 @@
 package com.rr.numio.ui
 
 import android.annotation.SuppressLint
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -269,9 +271,9 @@ fun CalculatorScreen(
         }
     }
 
-    // History bottom sheet
+    // History overlay (drawn in-screen, no separate window)
     if (uiState.isHistoryVisible) {
-        ModalBottomSheet(onDismissRequest = { viewModel.toggleHistory() }) {
+        HistoryOverlay(onDismiss = { viewModel.toggleHistory() }) {
             HistorySheetContent(
                 history = history,
                 onItemClick = { viewModel.reuseHistoryEntry(it) },
@@ -412,6 +414,49 @@ private fun CircleKey(
 }
 
 @Composable
+private fun HistoryOverlay(onDismiss: () -> Unit, content: @Composable () -> Unit) {
+    BackHandler(onBack = onDismiss)
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.55f))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onDismiss          // tap outside closes
+            ),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(                  // swallow taps inside the panel
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = {}
+                ),
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+            color = NumioSurface,
+            contentColor = NumioTextOnDark
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.navigationBarsPadding()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .padding(top = 12.dp)
+                        .size(width = 36.dp, height = 4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(NumioTextMuted)
+                )
+                content()
+            }
+        }
+    }
+}
+
+@Composable
 private fun HistorySheetContent(
     history: List<HistoryEntity>,
     onItemClick: (HistoryEntity) -> Unit,
@@ -433,7 +478,7 @@ private fun HistorySheetContent(
             Text(
                 text = "No calculations yet",
                 modifier = Modifier.padding(vertical = 24.dp),
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = NumioTextMuted
             )
         } else {
             LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
@@ -447,7 +492,7 @@ private fun HistorySheetContent(
                         Text(
                             text = entry.expression,
                             fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = NumioTextMuted
                         )
                         Text(text = "= ${entry.result}", fontSize = 20.sp)
                     }
