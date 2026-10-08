@@ -149,8 +149,7 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
                 .evaluate()
 
             if (res.isNaN() || res.isInfinite()) ""
-            else if (res % 1 == 0.0) res.toLong().toString()
-            else res.toString()
+            else formatNumber(res)
         } catch (e: Exception) {
             ""
         }
@@ -179,7 +178,7 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
                 return
             }
 
-            val resStr = if (res % 1 == 0.0) res.toLong().toString() else res.toString()
+            val resStr = formatNumber(res)
             justEvaluated = true
             _uiState.value = _uiState.value.copy(result = resStr)
 

@@ -130,7 +130,11 @@ fun convert(value: Double, from: ConversionUnit, to: ConversionUnit, category: S
 fun formatResult(value: Double): String {
     if (value == 0.0) return "0"
     if (value % 1 == 0.0 && kotlin.math.abs(value) < 1e12) return value.toLong().toString()
-    return "%.6g".format(value).trimEnd('0').trimEnd('.')
+    val size = kotlin.math.abs(value)
+    // Very big or tiny: scientific notation. "%.6g" gave "1.50000e+20" and trimming zeros
+    // from the end of that turned it into "1.50000e+2", dropping an exponent digit.
+    if (size >= 1e6 || size < 1e-4) return scientific(value, significantDigits = 6)
+    return String.format(java.util.Locale.ROOT, "%.6g", value).trimEnd('0').trimEnd('.')
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
