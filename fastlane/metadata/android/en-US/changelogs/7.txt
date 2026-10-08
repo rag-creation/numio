@@ -1,0 +1,2 @@
+- Big results are no longer capped at 9223372036854775807; very large or tiny numbers show in scientific notation (1.5E20)
+- Unit converter no longer drops a digit from exponents
