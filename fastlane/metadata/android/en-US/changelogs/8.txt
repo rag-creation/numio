@@ -1,0 +1,6 @@
+- Fixed a crash when switching converter categories (for example Volume to Temperature)
+- Converter shows "Number too large" or "Not a number" instead of crashing or staying blank, and accepts a comma as the decimal point (1,5)
+- Converter result stays visible above the keyboard
+- Landscape: the result is no longer hidden and key labels fit their buttons
+- Custom colour: codes like GGGGGG now show an error
+- Results like 0.1 + 0.2 now show 0.3
