@@ -183,7 +183,8 @@ fun SettingsScreen(
                         )
                         Button(
                             onClick = {
-                                if (customHex.length == 6) {
+                                // Only 0-9 and A-F make a colour: GGGGGG used to be accepted silently.
+                                if (customHex.length == 6 && customHex.all { it in '0'..'9' || it in 'A'..'F' }) {
                                     onAccentColorChange(customHex)
                                     customError = false
                                 } else {
@@ -198,7 +199,7 @@ fun SettingsScreen(
                     }
                     if (customError) {
                         Text(
-                            text = "Enter a valid 6-character hex code",
+                            text = "Enter 6 characters using 0-9 and A-F, like FFD23F",
                             color = Color(0xFFE8452F),
                             fontSize = 11.sp
                         )

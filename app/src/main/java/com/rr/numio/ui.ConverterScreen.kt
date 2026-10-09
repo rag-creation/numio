@@ -3,6 +3,9 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.shape.CircleShape
@@ -137,7 +140,7 @@ fun formatResult(value: Double): String {
     return String.format(java.util.Locale.ROOT, "%.6g", value).trimEnd('0').trimEnd('.')
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ConverterScreen(
     accentColor: String,
@@ -156,17 +159,30 @@ fun ConverterScreen(
     var toUnitIndex by remember { mutableIntStateOf(1) }
     var inputValue by remember { mutableStateOf("") }
 
-    // Reset unit indices when category changes
-    LaunchedEffect(selectedCategoryIndex) {
-        fromUnitIndex = 0
-        toUnitIndex = 1
-        inputValue = ""
+    // Never index a category with another category's unit positions (Temperature has
+    // only 3 units, so "Teaspoon" at position 3 crashed). The chip resets them too.
+    val fromIndex = fromUnitIndex.coerceIn(category.units.indices)
+    val toIndex = toUnitIndex.coerceIn(category.units.indices)
+
+    // An error message replaces the result, so bad input never just shows nothing.
+    val (result, resultIsError) = remember(inputValue, fromIndex, toIndex, selectedCategoryIndex) {
+        val text = inputValue.trim().replace(',', '.') // 1,5 means 1.5 in many countries
+        val v = text.toDoubleOrNull()
+        when {
+            text.isEmpty() -> "" to false
+            v == null || v.isNaN() -> "Not a number" to true
+            v.isInfinite() -> "Number too large" to true
+            else -> {
+                val out = convert(v, category.units[fromIndex], category.units[toIndex], category.name)
+                if (out.isFinite()) formatResult(out) to false else "Number too large" to true
+            }
+        }
     }
 
-    val result = remember(inputValue, fromUnitIndex, toUnitIndex, selectedCategoryIndex) {
-        val v = inputValue.toDoubleOrNull()
-        if (v == null) ""
-        else formatResult(convert(v, category.units[fromUnitIndex], category.units[toUnitIndex], category.name))
+    // Keep the result in view above the keyboard while typing.
+    val resultInView = remember { BringIntoViewRequester() }
+    LaunchedEffect(result) {
+        if (result.isNotEmpty()) resultInView.bringIntoView()
     }
 
     Column(
@@ -201,6 +217,7 @@ fun ConverterScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp)
         ) {
@@ -214,7 +231,14 @@ fun ConverterScreen(
                 conversionCategories.forEachIndexed { index, cat ->
                     FilterChip(
                         selected = selectedCategoryIndex == index,
-                        onClick = { selectedCategoryIndex = index },
+                        onClick = {
+                            if (selectedCategoryIndex != index) {
+                                fromUnitIndex = 0
+                                toUnitIndex = 1
+                                inputValue = ""
+                                selectedCategoryIndex = index
+                            }
+                        },
                         label = {
                             Text(
                                 cat.name,
@@ -248,7 +272,7 @@ fun ConverterScreen(
                     Text("From", color = NumioTextMuted, fontSize = 12.sp)
                     UnitDropdown(
                         units = category.units,
-                        selectedIndex = fromUnitIndex,
+                        selectedIndex = fromIndex,
                         onSelect = { fromUnitIndex = it },
                         accent = accent,
                         surface = NumioSurface,
@@ -276,9 +300,8 @@ fun ConverterScreen(
                     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                         IconButton(
                             onClick = {
-                                val temp = fromUnitIndex
-                                fromUnitIndex = toUnitIndex
-                                toUnitIndex = temp
+                                fromUnitIndex = toIndex
+                                toUnitIndex = fromIndex
                             },
                             modifier = Modifier
                                 .clip(CircleShape)
@@ -297,7 +320,7 @@ fun ConverterScreen(
                     Text("To", color = NumioTextMuted, fontSize = 12.sp)
                     UnitDropdown(
                         units = category.units,
-                        selectedIndex = toUnitIndex,
+                        selectedIndex = toIndex,
                         onSelect = { toUnitIndex = it },
                         accent = accent,
                         surface = NumioSurface,
@@ -309,6 +332,7 @@ fun ConverterScreen(
                     if (result.isNotEmpty()) {
                         Box(
                             modifier = Modifier
+                                .bringIntoViewRequester(resultInView)
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(16.dp))
                                 .background(NumioBg)
@@ -318,9 +342,10 @@ fun ConverterScreen(
                                 Text("Result", color = NumioTextMuted, fontSize = 12.sp)
                                 Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = "$result ${category.units[toUnitIndex].name}",
-                                    color = accent,
-                                    fontSize = 28.sp,
+                                    text = if (resultIsError) result
+                                           else "$result ${category.units[toIndex].name}",
+                                    color = if (resultIsError) Color(0xFFE57373) else accent,
+                                    fontSize = if (resultIsError) 18.sp else 28.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                             }

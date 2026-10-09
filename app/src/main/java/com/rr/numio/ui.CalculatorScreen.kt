@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -154,7 +155,7 @@ fun CalculatorScreen(
         }
 
         // Display card — takes all space the keypad doesn't use
-        Box(
+        BoxWithConstraints(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
@@ -164,6 +165,12 @@ fun CalculatorScreen(
                 .padding(horizontal = 20.dp, vertical = 16.dp),
             contentAlignment = Alignment.BottomEnd
         ) {
+            // In landscape the card is short: shrink both lines to fit, so the result is never
+            // pushed out of view. fontScale keeps this right with bigger system fonts too.
+            val fontScale = LocalDensity.current.fontScale
+            val fitSp = ((maxHeight.value - 20f) / fontScale).coerceAtLeast(20f) // 20dp: gap + underline
+            val exprSize = minOf(48f, fitSp * 0.30f).sp
+            val resultSize = minOf(resultFontSize(uiState.result.length).value, fitSp * 0.36f).sp
             Column(
                 horizontalAlignment = Alignment.End,
                 modifier = Modifier.fillMaxWidth()
@@ -175,7 +182,7 @@ fun CalculatorScreen(
                 // Expression — bigger and right-aligned
                 Text(
                     text = uiState.expression.ifEmpty { "0" },
-                    fontSize = 48.sp,
+                    fontSize = exprSize,
                     textAlign = TextAlign.End,
                     maxLines = 1,
                     overflow = TextOverflow.Clip,
@@ -189,7 +196,7 @@ fun CalculatorScreen(
                     // Result — right-aligned, shrinks for long numbers
                     Text(
                         text = uiState.result,
-                        fontSize = resultFontSize(uiState.result.length),
+                        fontSize = resultSize,
                         fontWeight = FontWeight.Light,
                         textAlign = TextAlign.End,
                         maxLines = 1,
@@ -219,6 +226,8 @@ fun CalculatorScreen(
             val byWidth = (maxWidth - gap * 3) / 4
             val byHeight = (maxHeight * 0.65f - gap * 4) / 5
             val keySize = minOf(byWidth, byHeight)
+            // Smaller keys (landscape) get smaller labels, so "AC" and "⌫" aren't clipped
+            val labelScale = (keySize / 80.dp).coerceIn(0.45f, 1f)
 
             Column(
                 verticalArrangement = Arrangement.spacedBy(gap),
@@ -232,6 +241,7 @@ fun CalculatorScreen(
                                 type = type,
                                 accent = accent,
                                 accentLight = NumioYellowLight,
+                                labelScale = labelScale,
                                 modifier = Modifier.size(keySize),
                                 onClick = { viewModel.onKeyPress(label) }
                             )
@@ -244,6 +254,7 @@ fun CalculatorScreen(
                         type = KeyType.NUM,
                         accent = accent,
                         accentLight = NumioYellowLight,
+                        labelScale = labelScale,
                         modifier = Modifier
                             .width(keySize * 2 + gap)
                             .height(keySize),
@@ -255,6 +266,7 @@ fun CalculatorScreen(
                         type = KeyType.NUM,
                         accent = accent,
                         accentLight = NumioYellowLight,
+                        labelScale = labelScale,
                         modifier = Modifier.size(keySize),
                         onClick = { viewModel.onKeyPress(".") }
                     )
@@ -263,6 +275,7 @@ fun CalculatorScreen(
                         type = KeyType.EQUAL,
                         accent = accent,
                         accentLight = NumioYellowLight,
+                        labelScale = labelScale,
                         modifier = Modifier.size(keySize),
                         onClick = { viewModel.onKeyPress("=") }
                     )
@@ -375,6 +388,7 @@ private fun CircleKey(
     accentLight: Color,
     modifier: Modifier = Modifier,
     shape: androidx.compose.ui.graphics.Shape = CircleShape,
+    labelScale: Float = 1f,
     onClick: () -> Unit
 ) {
     val containerColor = when (type) {
@@ -392,7 +406,7 @@ private fun CircleKey(
         KeyType.EQUAL -> NumioBg
     }
     // Bigger labels: AC/⌫ 15 → 18, digits and operators 26 → 32
-    val fontSize = if (label == "AC" || label == "C") 18.sp else 32.sp
+    val fontSize = (if (label == "AC" || label == "C") 18.sp else 32.sp) * labelScale
     val fontWeight = if (label == "AC" || label == "C") FontWeight.Bold else FontWeight.Medium
 
     Button(
