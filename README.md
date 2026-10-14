@@ -26,6 +26,7 @@ No ads. No tracking. No internet permission. Just a calculator.
 
 
 ![Release](https://img.shields.io/github/v/release/rag-creation/numio)
+[![F-Droid](https://img.shields.io/f-droid/v/com.rr.numio)](https://f-droid.org/packages/com.rr.numio/)
 
 
 
@@ -53,9 +54,10 @@ No ads. No tracking. No internet permission. Just a calculator.
 
 ## Download
 
-Get the latest APK from [Releases](https://github.com/rag-creation/numio/releases/latest).
+[<img src="https://f-droid.org/badge/get-it-on.png" alt="Get it on F-Droid" height="80">](https://f-droid.org/packages/com.rr.numio/)
 
-F-Droid version coming soon.
+- **F-Droid (recommended, updates automatically):** [f-droid.org/packages/com.rr.numio](https://f-droid.org/packages/com.rr.numio/)
+- **GitHub:** get the latest APK from [Releases](https://github.com/rag-creation/numio/releases/latest)
 
 ## Requirements
 
