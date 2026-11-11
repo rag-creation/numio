@@ -22,8 +22,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 
 data class ConversionUnit(val name: String, val toBase: Double)
 
@@ -183,6 +186,20 @@ fun ConverterScreen(
     val resultInView = remember { BringIntoViewRequester() }
     LaunchedEffect(result) {
         if (result.isNotEmpty()) resultInView.bringIntoView()
+    }
+    // Also when the keyboard opens without the result changing (tapping the same field
+    // again): wait for the keyboard to finish sliding up, then scroll the result into view.
+    val density = LocalDensity.current
+    val imeInsets = WindowInsets.ime
+    val currentResult by rememberUpdatedState(result)
+    LaunchedEffect(imeInsets, density) {
+        snapshotFlow { imeInsets.getBottom(density) }
+            .collectLatest { keyboardHeight ->
+                if (keyboardHeight > 0 && currentResult.isNotEmpty()) {
+                    delay(150) // collectLatest restarts this while the keyboard is still moving
+                    resultInView.bringIntoView()
+                }
+            }
     }
 
     Column(

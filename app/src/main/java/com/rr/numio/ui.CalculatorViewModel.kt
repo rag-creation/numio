@@ -136,6 +136,31 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
 
     private fun evaluatePreview(expression: String): String {
         if (!isCompleteExpression(expression)) return ""
+        return calculate(expression) ?: ""
+    }
+
+    private fun evaluate() {
+        val expression = _uiState.value.expression
+        val resStr = if (isCompleteExpression(expression)) calculate(expression) else null
+        if (resStr == null) {
+            _uiState.value = _uiState.value.copy(result = "Error")
+            return
+        }
+        justEvaluated = true
+        _uiState.value = _uiState.value.copy(result = resStr)
+
+        viewModelScope.launch {
+            repository.save(expression = expression, result = resStr)
+        }
+    }
+
+    /**
+     * The answer as display text, or null when it can't be worked out.
+     * Keypad maths is done exactly (see [ExactMath]); exp4j is only the fallback,
+     * e.g. for a result like 1.5E20 reused from history.
+     */
+    private fun calculate(expression: String): String? {
+        ExactMath.evaluate(expression)?.let { return formatExact(it) }
         return try {
             val sanitized = expression
                 .replace("×", "*")
@@ -148,45 +173,9 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
                 .build()
                 .evaluate()
 
-            if (res.isNaN() || res.isInfinite()) ""
-            else formatNumber(res)
+            if (res.isNaN() || res.isInfinite()) null else formatNumber(res)
         } catch (e: Exception) {
-            ""
-        }
-    }
-
-    private fun evaluate() {
-        val expression = _uiState.value.expression
-        if (!isCompleteExpression(expression)) {
-            _uiState.value = _uiState.value.copy(result = "Error")
-            return
-        }
-        try {
-            val sanitized = expression
-                .replace("×", "*")
-                .replace("÷", "/")
-                .replace("%", "/100")
-                .replace(Regex("√(\\d+(\\.\\d+)?)"), "sqrt($1)")
-
-            val res = ExpressionBuilder(sanitized)
-                .function(sqrtFunction)
-                .build()
-                .evaluate()
-
-            if (res.isNaN() || res.isInfinite()) {
-                _uiState.value = _uiState.value.copy(result = "Error")
-                return
-            }
-
-            val resStr = formatNumber(res)
-            justEvaluated = true
-            _uiState.value = _uiState.value.copy(result = resStr)
-
-            viewModelScope.launch {
-                repository.save(expression = expression, result = resStr)
-            }
-        } catch (e: Exception) {
-            _uiState.value = _uiState.value.copy(result = "Error")
+            null
         }
     }
 

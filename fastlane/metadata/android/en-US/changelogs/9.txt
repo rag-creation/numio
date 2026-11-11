@@ -1,0 +1,3 @@
+- Exact maths: big numbers keep every digit (9007199254740993 - 9007199254740992 now gives 1, not 0)
+- Landscape: display and keypad now sit side by side, so the result stays readable with large system fonts
+- Converter: tapping the same input again keeps the result visible above the keyboard
