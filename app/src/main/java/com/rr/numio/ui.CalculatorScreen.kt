@@ -21,7 +21,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -34,7 +42,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rr.numio.data.HistoryEntity
 import kotlinx.coroutines.delay
 
-enum class KeyType { NUM, OP, BACKSPACE, CLEAR_ALL, EQUAL }
+enum class KeyType { NUM, OP, BACKSPACE, CLEAR_ALL, EQUAL, BRACKET }
 
 private val NumioBg = Color(0xFF1B1917)
 private val NumioSurface = Color(0xFF3A3733)
@@ -65,7 +73,7 @@ fun CalculatorScreen(
     var lastTapTime by remember { mutableLongStateOf(0L) }
 
     val keys = listOf(
-        listOf("AC" to KeyType.CLEAR_ALL, "C" to KeyType.BACKSPACE, "%" to KeyType.OP, "÷" to KeyType.OP),
+        listOf("AC" to KeyType.CLEAR_ALL, "C" to KeyType.BACKSPACE, "()" to KeyType.BRACKET, "%" to KeyType.OP, "÷" to KeyType.OP),
         listOf("7" to KeyType.NUM, "8" to KeyType.NUM, "9" to KeyType.NUM, "×" to KeyType.OP),
         listOf("4" to KeyType.NUM, "5" to KeyType.NUM, "6" to KeyType.NUM, "-" to KeyType.OP),
         listOf("1" to KeyType.NUM, "2" to KeyType.NUM, "3" to KeyType.NUM, "+" to KeyType.OP)
@@ -154,130 +162,61 @@ fun CalculatorScreen(
             }
         }
 
-        // Display card — takes all space the keypad doesn't use
+        // Landscape: display on the left, keypad on the right. Stacking them left the
+        // display so short that big system fonts (150%) squeezed the result out of view.
         BoxWithConstraints(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .padding(vertical = 12.dp)
-                .clip(RoundedCornerShape(28.dp))
-                .background(Color(0xFF0E0D0C))
-                .padding(horizontal = 20.dp, vertical = 16.dp),
-            contentAlignment = Alignment.BottomEnd
         ) {
-            // In landscape the card is short: shrink both lines to fit, so the result is never
-            // pushed out of view. fontScale keeps this right with bigger system fonts too.
-            val fontScale = LocalDensity.current.fontScale
-            val fitSp = ((maxHeight.value - 20f) / fontScale).coerceAtLeast(20f) // 20dp: gap + underline
-            val exprSize = minOf(48f, fitSp * 0.30f).sp
-            val resultSize = minOf(resultFontSize(uiState.result.length).value, fitSp * 0.36f).sp
-            Column(
-                horizontalAlignment = Alignment.End,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                val exprScrollState = rememberScrollState()
-                LaunchedEffect(uiState.expression) {
-                    exprScrollState.animateScrollTo(exprScrollState.maxValue)
-                }
-                // Expression — bigger and right-aligned
-                Text(
-                    text = uiState.expression.ifEmpty { "0" },
-                    fontSize = exprSize,
-                    textAlign = TextAlign.End,
-                    maxLines = 1,
-                    overflow = TextOverflow.Clip,
-                    color = Color(0xFFCCBF8A),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(exprScrollState)
-                )
-                if (uiState.result.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    // Result — right-aligned, shrinks for long numbers
-                    Text(
-                        text = uiState.result,
-                        fontSize = resultSize,
-                        fontWeight = FontWeight.Light,
-                        textAlign = TextAlign.End,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        color = NumioTextOnDark,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .padding(top = 10.dp)
-                        .fillMaxWidth()
-                        .height(2.dp)
-                        .background(accentLight)
-                )
-            }
-        }
-
-        // Keypad — perfectly round keys
-        BoxWithConstraints(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp)
-        ) {
-            val gap = 12.dp
-            // Size keys by width, but cap by height so landscape still fits
-            val byWidth = (maxWidth - gap * 3) / 4
-            val byHeight = (maxHeight * 0.65f - gap * 4) / 5
-            val keySize = minOf(byWidth, byHeight)
-            // Smaller keys (landscape) get smaller labels, so "AC" and "⌫" aren't clipped
-            val labelScale = (keySize / 80.dp).coerceIn(0.45f, 1f)
-
-            Column(
-                verticalArrangement = Arrangement.spacedBy(gap),
-                modifier = Modifier.align(Alignment.Center)
-            ) {
-                keys.forEach { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
-                        row.forEach { (label, type) ->
-                            CircleKey(
-                                label = label,
-                                type = type,
-                                accent = accent,
-                                accentLight = NumioYellowLight,
-                                labelScale = labelScale,
-                                modifier = Modifier.size(keySize),
-                                onClick = { viewModel.onKeyPress(label) }
-                            )
-                        }
-                    }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
-                    CircleKey(
-                        label = "0",
-                        type = KeyType.NUM,
-                        accent = accent,
-                        accentLight = NumioYellowLight,
-                        labelScale = labelScale,
+            if (maxWidth > maxHeight) {
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    CalcDisplay(
+                        expression = uiState.expression,
+                        result = uiState.result,
+                        cursor = uiState.cursor,
+                        showCursor = uiState.showCursor,
+                        onTapExpression = { viewModel.moveCursor(it) },
+                        accentLight = accentLight,
                         modifier = Modifier
-                            .width(keySize * 2 + gap)
-                            .height(keySize),
-                        shape = RoundedCornerShape(999.dp),
-                        onClick = { viewModel.onKeyPress("0") }
+                            .weight(1f)
+                            .fillMaxHeight()
                     )
-                    CircleKey(
-                        label = ".",
-                        type = KeyType.NUM,
+                    CalcKeypad(
+                        keys = keys,
                         accent = accent,
                         accentLight = NumioYellowLight,
-                        labelScale = labelScale,
-                        modifier = Modifier.size(keySize),
-                        onClick = { viewModel.onKeyPress(".") }
+                        heightShare = 1f,
+                        onKey = { viewModel.onKeyPress(it) },
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
                     )
-                    CircleKey(
-                        label = "=",
-                        type = KeyType.EQUAL,
+                }
+            } else {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    // Display card — takes all space the keypad doesn't use
+                    CalcDisplay(
+                        expression = uiState.expression,
+                        result = uiState.result,
+                        cursor = uiState.cursor,
+                        showCursor = uiState.showCursor,
+                        onTapExpression = { viewModel.moveCursor(it) },
+                        accentLight = accentLight,
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                    )
+                    CalcKeypad(
+                        keys = keys,
                         accent = accent,
                         accentLight = NumioYellowLight,
-                        labelScale = labelScale,
-                        modifier = Modifier.size(keySize),
-                        onClick = { viewModel.onKeyPress("=") }
+                        heightShare = 0.65f,
+                        onKey = { viewModel.onKeyPress(it) },
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
             }
@@ -397,6 +336,7 @@ private fun CircleKey(
         KeyType.BACKSPACE -> NumioSurface
         KeyType.CLEAR_ALL -> NumioRed
         KeyType.EQUAL -> accentLight
+        KeyType.BRACKET -> NumioSurface
     }
     val contentColor = when (type) {
         KeyType.NUM -> NumioTextOnDark
@@ -404,6 +344,7 @@ private fun CircleKey(
         KeyType.BACKSPACE -> NumioTextOnDark
         KeyType.CLEAR_ALL -> Color.White
         KeyType.EQUAL -> NumioBg
+        KeyType.BRACKET -> accent
     }
     // Bigger labels: AC/⌫ 15 → 18, digits and operators 26 → 32
     val fontSize = (if (label == "AC" || label == "C") 18.sp else 32.sp) * labelScale
@@ -420,7 +361,11 @@ private fun CircleKey(
         contentPadding = PaddingValues(0.dp)
     ) {
         Text(
-            text = if (label == "C") "⌫" else label,
+            text = when (label) {
+                "C" -> "⌫"
+                "()" -> "( )"
+                else -> label
+            },
             fontSize = fontSize,
             fontWeight = fontWeight
         )
@@ -518,9 +463,234 @@ private fun HistorySheetContent(
 }
 
 // Result text shrinks as the number gets longer, so it never gets cut off
+@SuppressLint("UnusedBoxWithConstraintsScope")
+@Composable
+private fun CalcDisplay(
+    expression: String,
+    result: String,
+    cursor: Int,
+    showCursor: Boolean,
+    onTapExpression: (Int) -> Unit,
+    accentLight: Color,
+    modifier: Modifier = Modifier
+) {
+    BoxWithConstraints(
+        modifier = modifier
+            .padding(vertical = 12.dp)
+            .clip(RoundedCornerShape(28.dp))
+            .background(Color(0xFF0E0D0C))
+            .padding(horizontal = 20.dp, vertical = 16.dp),
+        contentAlignment = Alignment.BottomEnd
+    ) {
+        // Shrink both lines to fit the card. Heights are in dp, font sizes in sp, so divide
+        // by fontScale: at 150% system font 1sp is 1.5dp. Each line is set to 1.2× its font size.
+        val fontScale = LocalDensity.current.fontScale
+        val textDp = (maxHeight.value - 16f).coerceAtLeast(0f) // 4dp gap + 12dp underline
+        val lineToSp = 1f / (1.2f * fontScale)
+        val exprSize = minOf(48f, textDp * 0.40f * lineToSp).coerceAtLeast(8f)
+        val resultSize = minOf(resultFontSize(result.length).value, textDp * 0.50f * lineToSp)
+            .coerceAtLeast(8f)
+        Column(
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.Bottom,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            val exprScrollState = rememberScrollState()
+            var exprLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
+            val currentOnTap by rememberUpdatedState(onTapExpression)
+            val exprColor = Color(0xFFCCBF8A)
+            // Cursor in the middle, or shown after a tap (also at the end) until = or AC.
+            val inMiddle = expression.isNotEmpty() && cursor < expression.length
+            val editing = expression.isNotEmpty() && (showCursor || inMiddle)
+
+            // Brackets still open get a faint ")" at the end: a hint that = will add them.
+            val stillOpen = expression.count { it == '(' } - expression.count { it == ')' }
+            val shown = buildAnnotatedString {
+                append(expression.ifEmpty { "0" })
+                if (stillOpen > 0) {
+                    withStyle(SpanStyle(color = exprColor.copy(alpha = 0.35f))) {
+                        append(")".repeat(stillOpen))
+                    }
+                }
+            }
+
+            val blink by rememberInfiniteTransition(label = "cursor").animateFloat(
+                initialValue = 1f,
+                targetValue = 0.45f, // never fades out fully, so it's easy to spot
+                animationSpec = infiniteRepeatable(tween(530), RepeatMode.Reverse),
+                label = "cursorBlink"
+            )
+
+            // Keep the end in view while typing at the end; keep the cursor in view while editing.
+            LaunchedEffect(expression, cursor, exprLayout) {
+                val layout = exprLayout ?: return@LaunchedEffect
+                if (!inMiddle) {
+                    exprScrollState.animateScrollTo(exprScrollState.maxValue)
+                    return@LaunchedEffect
+                }
+                val x = layout.getCursorRect(cursor.coerceIn(0, layout.layoutInput.text.length))
+                    .left.toInt()
+                val viewport = exprScrollState.viewportSize
+                val margin = 48
+                if (viewport > 0) {
+                    if (x < exprScrollState.value + margin) {
+                        exprScrollState.animateScrollTo((x - margin).coerceAtLeast(0))
+                    } else if (x > exprScrollState.value + viewport - margin) {
+                        exprScrollState.animateScrollTo(x - viewport + margin)
+                    }
+                }
+            }
+
+            // Expression — bigger and right-aligned. weight(fill = false) measures it last,
+            // so if space ever runs out the expression gets clipped, never the result.
+            // Tap anywhere in it to put the cursor there and fix a number in the middle.
+            Text(
+                text = shown,
+                fontSize = exprSize.sp,
+                lineHeight = (exprSize * 1.2f).sp,
+                textAlign = TextAlign.End,
+                maxLines = 1,
+                overflow = TextOverflow.Clip,
+                color = exprColor,
+                onTextLayout = { exprLayout = it },
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .fillMaxWidth()
+                    .horizontalScroll(exprScrollState)
+                    .pointerInput(Unit) {
+                        detectTapGestures { position ->
+                            exprLayout?.let { currentOnTap(it.getOffsetForPosition(position)) }
+                        }
+                    }
+                    .drawWithContent {
+                        drawContent()
+                        val layout = exprLayout
+                        if (editing && layout != null) {
+                            val r = layout.getCursorRect(
+                                cursor.coerceIn(0, layout.layoutInput.text.length)
+                            )
+                            drawLine(
+                                color = accentLight.copy(alpha = blink),
+                                start = Offset(r.left, r.top),
+                                end = Offset(r.left, r.bottom),
+                                strokeWidth = 3.dp.toPx()
+                            )
+                        }
+                    }
+            )
+            if (result.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                // Result — right-aligned, shrinks for long numbers
+                Text(
+                    text = result,
+                    fontSize = resultSize.sp,
+                    lineHeight = (resultSize * 1.2f).sp,
+                    fontWeight = FontWeight.Light,
+                    textAlign = TextAlign.End,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = NumioTextOnDark,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .padding(top = 10.dp)
+                    .fillMaxWidth()
+                    .height(2.dp)
+                    .background(accentLight)
+            )
+        }
+    }
+}
+
+/** Round keys. [heightShare] is how much of the available height the keys may use. */
+@SuppressLint("UnusedBoxWithConstraintsScope")
+@Composable
+private fun CalcKeypad(
+    keys: List<List<Pair<String, KeyType>>>,
+    accent: Color,
+    accentLight: Color,
+    heightShare: Float,
+    onKey: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    BoxWithConstraints(
+        modifier = modifier.padding(bottom = 16.dp)
+    ) {
+        val gap = 12.dp
+        // Size keys by width, but cap by height so landscape still fits
+        // The top row has 5 smaller keys (AC ⌫ ( ) % ÷) across the same width as 4 keys:
+        // 5 × small + 4 gaps = 4 × key + 3 gaps, so small = (4 × key − gap) / 5.
+        // Height: small + 4 keys + 4 gaps must fit, which gives the byHeight formula.
+        val byWidth = (maxWidth - gap * 3) / 4
+        val byHeight = ((maxHeight * heightShare - gap * 4) * 5 + gap) / 24
+        val keySize = minOf(byWidth, byHeight)
+        val smallKeySize = (keySize * 4 - gap) / 5
+        // Smaller keys (landscape) get smaller labels, so "AC" and "⌫" aren't clipped
+        val labelScale = (keySize / 80.dp).coerceIn(0.45f, 1f)
+        val smallLabelScale = (smallKeySize / 80.dp).coerceIn(0.45f, 1f)
+
+        Column(
+            verticalArrangement = Arrangement.spacedBy(gap),
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            keys.forEach { row ->
+                val small = row.size == 5
+                Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                    row.forEach { (label, type) ->
+                        CircleKey(
+                            label = label,
+                            type = type,
+                            accent = accent,
+                            accentLight = accentLight,
+                            labelScale = if (small) smallLabelScale else labelScale,
+                            modifier = Modifier.size(if (small) smallKeySize else keySize),
+                            onClick = { onKey(label) }
+                        )
+                    }
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                CircleKey(
+                    label = "0",
+                    type = KeyType.NUM,
+                    accent = accent,
+                    accentLight = accentLight,
+                    labelScale = labelScale,
+                    modifier = Modifier
+                        .width(keySize * 2 + gap)
+                        .height(keySize),
+                    shape = RoundedCornerShape(999.dp),
+                    onClick = { onKey("0") }
+                )
+                CircleKey(
+                    label = ".",
+                    type = KeyType.NUM,
+                    accent = accent,
+                    accentLight = accentLight,
+                    labelScale = labelScale,
+                    modifier = Modifier.size(keySize),
+                    onClick = { onKey(".") }
+                )
+                CircleKey(
+                    label = "=",
+                    type = KeyType.EQUAL,
+                    accent = accent,
+                    accentLight = accentLight,
+                    labelScale = labelScale,
+                    modifier = Modifier.size(keySize),
+                    onClick = { onKey("=") }
+                )
+            }
+        }
+    }
+}
+
 private fun resultFontSize(length: Int) = when {
     length <= 8 -> 58.sp
     length <= 12 -> 46.sp
     length <= 16 -> 36.sp
-    else -> 28.sp
+    length <= 20 -> 28.sp
+    else -> 24.sp
 }

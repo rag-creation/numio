@@ -1,0 +1,6 @@
+- New ( ) key for brackets
+- Tap the sum to place a cursor and edit in the middle
+- Exact maths: big numbers keep every digit
+- Landscape: display and keys side by side, readable with large fonts
+- Converter: result stays visible above the keyboard
+- Themed icon support (Android 13+)

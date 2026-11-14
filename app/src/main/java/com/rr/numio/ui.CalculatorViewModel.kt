@@ -23,6 +23,10 @@ private val sqrtFunction = object : Function("sqrt", 1) {
 data class CalculatorUiState(
     val expression: String = "",
     val result: String = "",
+    /** Where the next key goes. Tap the expression to move it; normally it's at the end. */
+    val cursor: Int = 0,
+    /** True after tapping the expression: the cursor stays visible (even at the end) until = or AC. */
+    val showCursor: Boolean = false,
     val isHistoryVisible: Boolean = false,
     val isEasterEggVisible: Boolean = false
 )
@@ -48,59 +52,112 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
 
     fun onKeyPress(label: String) {
         val current = _uiState.value
+        val cursor = current.cursor.coerceIn(0, current.expression.length)
+        // Keys work on the text left of the cursor; the text right of it stays as it is.
+        val before = current.expression.substring(0, cursor)
+        val after = current.expression.substring(cursor)
         when (label) {
             "AC" -> {
                 justEvaluated = false
-                _uiState.value = current.copy(expression = "", result = "")
+                _uiState.value = current.copy(expression = "", result = "", cursor = 0, showCursor = false)
             }
             "C" -> {
                 justEvaluated = false
-                val newExpr = current.expression.dropLast(1)
-                val liveResult = evaluatePreview(newExpr)
-                _uiState.value = current.copy(expression = newExpr, result = liveResult)
+                val newBefore = before.dropLast(1)
+                val newExpr = newBefore + after
+                _uiState.value = current.copy(
+                    expression = newExpr,
+                    result = evaluatePreview(newExpr),
+                    cursor = newBefore.length
+                )
             }
             "=" -> evaluate()
             else -> {
                 val isOperator = label in operators
-                val base = when {
+                val (base, rest) = when {
                     justEvaluated && isOperator ->
-                        if (current.result.isNotEmpty() && current.result != "Error") current.result
-                        else current.expression
-                    justEvaluated -> ""
-                    else -> current.expression
+                        (if (current.result.isNotEmpty() && current.result != "Error") current.result
+                        else current.expression) to ""
+                    justEvaluated -> "" to ""
+                    else -> before to after
                 }
                 justEvaluated = false
-                val newExpression = appendInput(base, label)
-                val liveResult = evaluatePreview(newExpression)
-                _uiState.value = current.copy(expression = newExpression, result = liveResult)
+                var newBefore = appendInput(base, label)
+                var newAfter = rest
+                if (label == "()" && newBefore == "$base)" && rest.startsWith(")")) {
+                    // A ")" is already right after the cursor: step over it, don't add another.
+                    newBefore = base + ")"
+                    newAfter = rest.drop(1)
+                } else if (label in binaryOps && newBefore != base &&
+                    rest.firstOrNull()?.toString() in binaryOps
+                ) {
+                    // Cursor before an operator (11|+12) and a new operator typed: replace it.
+                    newAfter = rest.drop(1)
+                }
+                val newExpression = newBefore + newAfter
+                _uiState.value = current.copy(
+                    expression = newExpression,
+                    result = evaluatePreview(newExpression),
+                    cursor = newBefore.length
+                )
             }
         }
     }
+
+    /** Tapping the expression puts the cursor there, to fix or add a number in the middle. */
+    fun moveCursor(position: Int) {
+        val current = _uiState.value
+        val newCursor = position.coerceIn(0, current.expression.length)
+        if (newCursor == current.cursor && current.showCursor && !justEvaluated) return
+        justEvaluated = false
+        _uiState.value = current.copy(
+            cursor = newCursor,
+            showCursor = true,
+            result = evaluatePreview(current.expression)
+        )
+    }
+
     private val binaryOps = setOf("+", "-", "×", "÷", "^")
 
     private fun appendInput(expr: String, label: String): String {
         val last = expr.lastOrNull()?.toString()
+        // After % or ) a new number means multiply: 5%2 → 5%×2, (2+3)4 → (2+3)×4
+        val afterClosed = last == "%" || last == ")"
         return when {
+            label == "()" -> {
+                // One smart key: closes an open bracket after a number, otherwise opens one.
+                // A bracket right after a number multiplies: 2( → 2×(
+                val stillOpen = expr.count { it == '(' } - expr.count { it == ')' }
+                val c = expr.lastOrNull()
+                val afterValue = c != null && (c.isDigit() || c == ')' || c == '%' || c == '.')
+                when {
+                    stillOpen > 0 && afterValue -> expr.trimEnd('.') + ")"
+                    afterValue -> expr.trimEnd('.') + "×("
+                    else -> "$expr("
+                }
+            }
             label in binaryOps -> {
-                if (label == "-" && (last == null || last in setOf("×", "÷", "^"))) {
+                if (label == "-" && (last == null || last in setOf("×", "÷", "^", "("))) {
                     return expr + "-"
                 }
                 val trimmed = expr.trimEnd { it.toString() in binaryOps || it == '.' }
-                if (trimmed.isEmpty()) expr else trimmed + label
+                // Nothing to work on yet: right at the start, or right after "("
+                if (trimmed.isEmpty() || trimmed.last() == '(') expr else trimmed + label
             }
             label == "%" -> {
                 val trimmed = expr.trimEnd { it.toString() in binaryOps || it == '.' }
-                if (trimmed.isEmpty() || trimmed.last() == '%') expr else "$trimmed%"
+                if (trimmed.isEmpty() || trimmed.last() == '%' || trimmed.last() == '(') expr
+                else "$trimmed%"
             }
             label == "." -> {
                 val currentNumber = expr.takeLastWhile { it.isDigit() || it == '.' }
                 when {
                     '.' in currentNumber -> expr
-                    currentNumber.isEmpty() -> expr + (if (last == "%") "×0." else "0.")
+                    currentNumber.isEmpty() -> expr + (if (afterClosed) "×0." else "0.")
                     else -> "$expr."
                 }
             }
-            else -> if (last == "%") "$expr×$label" else expr + label
+            else -> if (afterClosed) "$expr×$label" else expr + label
         }
     }
     fun toggleHistory() {
@@ -116,6 +173,8 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
         _uiState.value = _uiState.value.copy(
             expression = entry.result,
             result = "",
+            cursor = entry.result.length,
+            showCursor = false,
             isHistoryVisible = false
         )
     }
@@ -130,12 +189,69 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
 
     private fun isCompleteExpression(expr: String): Boolean {
         if (expr.isBlank()) return false
-        val trailingOperator = Regex("[+\\-×÷^]$")
-        return !trailingOperator.containsMatchIn(expr)
+        val trailingOperator = Regex("[+\\-×÷^(]$")
+        if (trailingOperator.containsMatchIn(expr)) return false
+        // Editing in the middle can leave broken spots, like deleting the 1 in 45-1+124
+        // gives 45-+124. Show no answer until it's fixed, instead of a wrong one.
+        if (expr.first() in "+×÷^%)") return false
+        for (i in 1 until expr.length) {
+            val a = expr[i - 1]
+            val b = expr[i]
+            val aIsOp = a in "+-×÷^"
+            when {
+                // two signs in a row; only a minus after × ÷ ^ ( is fine (2×-3, (-3))
+                b in "+×÷^" && (aIsOp || a == '(') -> return false
+                b == '-' && a in "+-" -> return false
+                // % or ) right after a sign or "("
+                (b == '%' || b == ')') && (aIsOp || a == '(') -> return false
+            }
+        }
+        return true
+    }
+
+    /** Adds the ")" still missing at the end, so (2+3 can already show 5. */
+    private fun closeBrackets(expr: String): String {
+        val stillOpen = expr.count { it == '(' } - expr.count { it == ')' }
+        return if (stillOpen > 0) expr + ")".repeat(stillOpen) else expr
     }
 
     private fun evaluatePreview(expression: String): String {
         if (!isCompleteExpression(expression)) return ""
+        return calculate(closeBrackets(expression)) ?: ""
+    }
+
+    private fun evaluate() {
+        val typed = _uiState.value.expression
+        if (!isCompleteExpression(typed)) {
+            _uiState.value = _uiState.value.copy(result = "Error")
+            return
+        }
+        val expression = closeBrackets(typed)
+        val resStr = calculate(expression)
+        if (resStr == null) {
+            _uiState.value = _uiState.value.copy(result = "Error")
+            return
+        }
+        justEvaluated = true
+        _uiState.value = _uiState.value.copy(
+            expression = expression,
+            result = resStr,
+            cursor = expression.length,
+            showCursor = false
+        )
+
+        viewModelScope.launch {
+            repository.save(expression = expression, result = resStr)
+        }
+    }
+
+    /**
+     * The answer as display text, or null when it can't be worked out.
+     * Keypad maths is done exactly (see [ExactMath]); exp4j is only the fallback,
+     * e.g. for a result like 1.5E20 reused from history.
+     */
+    private fun calculate(expression: String): String? {
+        ExactMath.evaluate(expression)?.let { return formatExact(it) }
         return try {
             val sanitized = expression
                 .replace("×", "*")
@@ -148,45 +264,9 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
                 .build()
                 .evaluate()
 
-            if (res.isNaN() || res.isInfinite()) ""
-            else formatNumber(res)
+            if (res.isNaN() || res.isInfinite()) null else formatNumber(res)
         } catch (e: Exception) {
-            ""
-        }
-    }
-
-    private fun evaluate() {
-        val expression = _uiState.value.expression
-        if (!isCompleteExpression(expression)) {
-            _uiState.value = _uiState.value.copy(result = "Error")
-            return
-        }
-        try {
-            val sanitized = expression
-                .replace("×", "*")
-                .replace("÷", "/")
-                .replace("%", "/100")
-                .replace(Regex("√(\\d+(\\.\\d+)?)"), "sqrt($1)")
-
-            val res = ExpressionBuilder(sanitized)
-                .function(sqrtFunction)
-                .build()
-                .evaluate()
-
-            if (res.isNaN() || res.isInfinite()) {
-                _uiState.value = _uiState.value.copy(result = "Error")
-                return
-            }
-
-            val resStr = formatNumber(res)
-            justEvaluated = true
-            _uiState.value = _uiState.value.copy(result = resStr)
-
-            viewModelScope.launch {
-                repository.save(expression = expression, result = resStr)
-            }
-        } catch (e: Exception) {
-            _uiState.value = _uiState.value.copy(result = "Error")
+            null
         }
     }
 
