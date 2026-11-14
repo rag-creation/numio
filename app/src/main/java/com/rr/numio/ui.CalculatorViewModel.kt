@@ -25,6 +25,8 @@ data class CalculatorUiState(
     val result: String = "",
     /** Where the next key goes. Tap the expression to move it; normally it's at the end. */
     val cursor: Int = 0,
+    /** True after tapping the expression: the cursor stays visible (even at the end) until = or AC. */
+    val showCursor: Boolean = false,
     val isHistoryVisible: Boolean = false,
     val isEasterEggVisible: Boolean = false
 )
@@ -57,7 +59,7 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
         when (label) {
             "AC" -> {
                 justEvaluated = false
-                _uiState.value = current.copy(expression = "", result = "", cursor = 0)
+                _uiState.value = current.copy(expression = "", result = "", cursor = 0, showCursor = false)
             }
             "C" -> {
                 justEvaluated = false
@@ -106,10 +108,11 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
     fun moveCursor(position: Int) {
         val current = _uiState.value
         val newCursor = position.coerceIn(0, current.expression.length)
-        if (newCursor == current.cursor && !justEvaluated) return
+        if (newCursor == current.cursor && current.showCursor && !justEvaluated) return
         justEvaluated = false
         _uiState.value = current.copy(
             cursor = newCursor,
+            showCursor = true,
             result = evaluatePreview(current.expression)
         )
     }
@@ -171,6 +174,7 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
             expression = entry.result,
             result = "",
             cursor = entry.result.length,
+            showCursor = false,
             isHistoryVisible = false
         )
     }
@@ -216,7 +220,8 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
         _uiState.value = _uiState.value.copy(
             expression = expression,
             result = resStr,
-            cursor = expression.length
+            cursor = expression.length,
+            showCursor = false
         )
 
         viewModelScope.launch {

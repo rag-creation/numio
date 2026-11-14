@@ -178,6 +178,7 @@ fun CalculatorScreen(
                         expression = uiState.expression,
                         result = uiState.result,
                         cursor = uiState.cursor,
+                        showCursor = uiState.showCursor,
                         onTapExpression = { viewModel.moveCursor(it) },
                         accentLight = accentLight,
                         modifier = Modifier
@@ -202,6 +203,7 @@ fun CalculatorScreen(
                         expression = uiState.expression,
                         result = uiState.result,
                         cursor = uiState.cursor,
+                        showCursor = uiState.showCursor,
                         onTapExpression = { viewModel.moveCursor(it) },
                         accentLight = accentLight,
                         modifier = Modifier
@@ -467,6 +469,7 @@ private fun CalcDisplay(
     expression: String,
     result: String,
     cursor: Int,
+    showCursor: Boolean,
     onTapExpression: (Int) -> Unit,
     accentLight: Color,
     modifier: Modifier = Modifier
@@ -496,8 +499,9 @@ private fun CalcDisplay(
             var exprLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
             val currentOnTap by rememberUpdatedState(onTapExpression)
             val exprColor = Color(0xFFCCBF8A)
-            // The cursor only shows while editing in the middle; at the end it's like before.
-            val editing = expression.isNotEmpty() && cursor < expression.length
+            // Cursor in the middle, or shown after a tap (also at the end) until = or AC.
+            val inMiddle = expression.isNotEmpty() && cursor < expression.length
+            val editing = expression.isNotEmpty() && (showCursor || inMiddle)
 
             // Brackets still open get a faint ")" at the end: a hint that = will add them.
             val stillOpen = expression.count { it == '(' } - expression.count { it == ')' }
@@ -520,7 +524,7 @@ private fun CalcDisplay(
             // Keep the end in view while typing at the end; keep the cursor in view while editing.
             LaunchedEffect(expression, cursor, exprLayout) {
                 val layout = exprLayout ?: return@LaunchedEffect
-                if (!editing) {
+                if (!inMiddle) {
                     exprScrollState.animateScrollTo(exprScrollState.maxValue)
                     return@LaunchedEffect
                 }
