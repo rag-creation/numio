@@ -512,7 +512,7 @@ private fun CalcDisplay(
 
             val blink by rememberInfiniteTransition(label = "cursor").animateFloat(
                 initialValue = 1f,
-                targetValue = 0.15f,
+                targetValue = 0.45f, // never fades out fully, so it's easy to spot
                 animationSpec = infiniteRepeatable(tween(530), RepeatMode.Reverse),
                 label = "cursorBlink"
             )
@@ -569,7 +569,7 @@ private fun CalcDisplay(
                                 color = accentLight.copy(alpha = blink),
                                 start = Offset(r.left, r.top),
                                 end = Offset(r.left, r.bottom),
-                                strokeWidth = 2.dp.toPx()
+                                strokeWidth = 3.dp.toPx()
                             )
                         }
                     }
