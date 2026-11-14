@@ -23,6 +23,8 @@ private val sqrtFunction = object : Function("sqrt", 1) {
 data class CalculatorUiState(
     val expression: String = "",
     val result: String = "",
+    /** Where the next key goes. Tap the expression to move it; normally it's at the end. */
+    val cursor: Int = 0,
     val isHistoryVisible: Boolean = false,
     val isEasterEggVisible: Boolean = false
 )
@@ -48,34 +50,70 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
 
     fun onKeyPress(label: String) {
         val current = _uiState.value
+        val cursor = current.cursor.coerceIn(0, current.expression.length)
+        // Keys work on the text left of the cursor; the text right of it stays as it is.
+        val before = current.expression.substring(0, cursor)
+        val after = current.expression.substring(cursor)
         when (label) {
             "AC" -> {
                 justEvaluated = false
-                _uiState.value = current.copy(expression = "", result = "")
+                _uiState.value = current.copy(expression = "", result = "", cursor = 0)
             }
             "C" -> {
                 justEvaluated = false
-                val newExpr = current.expression.dropLast(1)
-                val liveResult = evaluatePreview(newExpr)
-                _uiState.value = current.copy(expression = newExpr, result = liveResult)
+                val newBefore = before.dropLast(1)
+                val newExpr = newBefore + after
+                _uiState.value = current.copy(
+                    expression = newExpr,
+                    result = evaluatePreview(newExpr),
+                    cursor = newBefore.length
+                )
             }
             "=" -> evaluate()
             else -> {
                 val isOperator = label in operators
-                val base = when {
+                val (base, rest) = when {
                     justEvaluated && isOperator ->
-                        if (current.result.isNotEmpty() && current.result != "Error") current.result
-                        else current.expression
-                    justEvaluated -> ""
-                    else -> current.expression
+                        (if (current.result.isNotEmpty() && current.result != "Error") current.result
+                        else current.expression) to ""
+                    justEvaluated -> "" to ""
+                    else -> before to after
                 }
                 justEvaluated = false
-                val newExpression = appendInput(base, label)
-                val liveResult = evaluatePreview(newExpression)
-                _uiState.value = current.copy(expression = newExpression, result = liveResult)
+                var newBefore = appendInput(base, label)
+                var newAfter = rest
+                if (label == "()" && newBefore == "$base)" && rest.startsWith(")")) {
+                    // A ")" is already right after the cursor: step over it, don't add another.
+                    newBefore = base + ")"
+                    newAfter = rest.drop(1)
+                } else if (label in binaryOps && newBefore != base &&
+                    rest.firstOrNull()?.toString() in binaryOps
+                ) {
+                    // Cursor before an operator (11|+12) and a new operator typed: replace it.
+                    newAfter = rest.drop(1)
+                }
+                val newExpression = newBefore + newAfter
+                _uiState.value = current.copy(
+                    expression = newExpression,
+                    result = evaluatePreview(newExpression),
+                    cursor = newBefore.length
+                )
             }
         }
     }
+
+    /** Tapping the expression puts the cursor there, to fix or add a number in the middle. */
+    fun moveCursor(position: Int) {
+        val current = _uiState.value
+        val newCursor = position.coerceIn(0, current.expression.length)
+        if (newCursor == current.cursor && !justEvaluated) return
+        justEvaluated = false
+        _uiState.value = current.copy(
+            cursor = newCursor,
+            result = evaluatePreview(current.expression)
+        )
+    }
+
     private val binaryOps = setOf("+", "-", "×", "÷", "^")
 
     private fun appendInput(expr: String, label: String): String {
@@ -132,6 +170,7 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
         _uiState.value = _uiState.value.copy(
             expression = entry.result,
             result = "",
+            cursor = entry.result.length,
             isHistoryVisible = false
         )
     }
@@ -174,7 +213,11 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
             return
         }
         justEvaluated = true
-        _uiState.value = _uiState.value.copy(expression = expression, result = resStr)
+        _uiState.value = _uiState.value.copy(
+            expression = expression,
+            result = resStr,
+            cursor = expression.length
+        )
 
         viewModelScope.launch {
             repository.save(expression = expression, result = resStr)

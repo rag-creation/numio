@@ -21,7 +21,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -169,6 +177,8 @@ fun CalculatorScreen(
                     CalcDisplay(
                         expression = uiState.expression,
                         result = uiState.result,
+                        cursor = uiState.cursor,
+                        onTapExpression = { viewModel.moveCursor(it) },
                         accentLight = accentLight,
                         modifier = Modifier
                             .weight(1f)
@@ -191,6 +201,8 @@ fun CalculatorScreen(
                     CalcDisplay(
                         expression = uiState.expression,
                         result = uiState.result,
+                        cursor = uiState.cursor,
+                        onTapExpression = { viewModel.moveCursor(it) },
                         accentLight = accentLight,
                         modifier = Modifier
                             .weight(1f)
@@ -454,6 +466,8 @@ private fun HistorySheetContent(
 private fun CalcDisplay(
     expression: String,
     result: String,
+    cursor: Int,
+    onTapExpression: (Int) -> Unit,
     accentLight: Color,
     modifier: Modifier = Modifier
 ) {
@@ -479,23 +493,86 @@ private fun CalcDisplay(
             modifier = Modifier.fillMaxWidth()
         ) {
             val exprScrollState = rememberScrollState()
-            LaunchedEffect(expression) {
-                exprScrollState.animateScrollTo(exprScrollState.maxValue)
+            var exprLayout by remember { mutableStateOf<TextLayoutResult?>(null) }
+            val currentOnTap by rememberUpdatedState(onTapExpression)
+            val exprColor = Color(0xFFCCBF8A)
+            // The cursor only shows while editing in the middle; at the end it's like before.
+            val editing = expression.isNotEmpty() && cursor < expression.length
+
+            // Brackets still open get a faint ")" at the end: a hint that = will add them.
+            val stillOpen = expression.count { it == '(' } - expression.count { it == ')' }
+            val shown = buildAnnotatedString {
+                append(expression.ifEmpty { "0" })
+                if (stillOpen > 0) {
+                    withStyle(SpanStyle(color = exprColor.copy(alpha = 0.35f))) {
+                        append(")".repeat(stillOpen))
+                    }
+                }
             }
+
+            val blink by rememberInfiniteTransition(label = "cursor").animateFloat(
+                initialValue = 1f,
+                targetValue = 0.15f,
+                animationSpec = infiniteRepeatable(tween(530), RepeatMode.Reverse),
+                label = "cursorBlink"
+            )
+
+            // Keep the end in view while typing at the end; keep the cursor in view while editing.
+            LaunchedEffect(expression, cursor, exprLayout) {
+                val layout = exprLayout ?: return@LaunchedEffect
+                if (!editing) {
+                    exprScrollState.animateScrollTo(exprScrollState.maxValue)
+                    return@LaunchedEffect
+                }
+                val x = layout.getCursorRect(cursor.coerceIn(0, layout.layoutInput.text.length))
+                    .left.toInt()
+                val viewport = exprScrollState.viewportSize
+                val margin = 48
+                if (viewport > 0) {
+                    if (x < exprScrollState.value + margin) {
+                        exprScrollState.animateScrollTo((x - margin).coerceAtLeast(0))
+                    } else if (x > exprScrollState.value + viewport - margin) {
+                        exprScrollState.animateScrollTo(x - viewport + margin)
+                    }
+                }
+            }
+
             // Expression — bigger and right-aligned. weight(fill = false) measures it last,
             // so if space ever runs out the expression gets clipped, never the result.
+            // Tap anywhere in it to put the cursor there and fix a number in the middle.
             Text(
-                text = expression.ifEmpty { "0" },
+                text = shown,
                 fontSize = exprSize.sp,
                 lineHeight = (exprSize * 1.2f).sp,
                 textAlign = TextAlign.End,
                 maxLines = 1,
                 overflow = TextOverflow.Clip,
-                color = Color(0xFFCCBF8A),
+                color = exprColor,
+                onTextLayout = { exprLayout = it },
                 modifier = Modifier
                     .weight(1f, fill = false)
                     .fillMaxWidth()
                     .horizontalScroll(exprScrollState)
+                    .pointerInput(Unit) {
+                        detectTapGestures { position ->
+                            exprLayout?.let { currentOnTap(it.getOffsetForPosition(position)) }
+                        }
+                    }
+                    .drawWithContent {
+                        drawContent()
+                        val layout = exprLayout
+                        if (editing && layout != null) {
+                            val r = layout.getCursorRect(
+                                cursor.coerceIn(0, layout.layoutInput.text.length)
+                            )
+                            drawLine(
+                                color = accentLight.copy(alpha = blink),
+                                start = Offset(r.left, r.top),
+                                end = Offset(r.left, r.bottom),
+                                strokeWidth = 2.dp.toPx()
+                            )
+                        }
+                    }
             )
             if (result.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(4.dp))
