@@ -190,7 +190,23 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
     private fun isCompleteExpression(expr: String): Boolean {
         if (expr.isBlank()) return false
         val trailingOperator = Regex("[+\\-×÷^(]$")
-        return !trailingOperator.containsMatchIn(expr)
+        if (trailingOperator.containsMatchIn(expr)) return false
+        // Editing in the middle can leave broken spots, like deleting the 1 in 45-1+124
+        // gives 45-+124. Show no answer until it's fixed, instead of a wrong one.
+        if (expr.first() in "+×÷^%)") return false
+        for (i in 1 until expr.length) {
+            val a = expr[i - 1]
+            val b = expr[i]
+            val aIsOp = a in "+-×÷^"
+            when {
+                // two signs in a row; only a minus after × ÷ ^ ( is fine (2×-3, (-3))
+                b in "+×÷^" && (aIsOp || a == '(') -> return false
+                b == '-' && a in "+-" -> return false
+                // % or ) right after a sign or "("
+                (b == '%' || b == ')') && (aIsOp || a == '(') -> return false
+            }
+        }
+        return true
     }
 
     /** Adds the ")" still missing at the end, so (2+3 can already show 5. */
