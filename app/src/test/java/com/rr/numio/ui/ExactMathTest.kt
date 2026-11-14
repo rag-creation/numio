@@ -37,6 +37,19 @@ class ExactMathTest {
     }
 
     @Test
+    fun brackets() {
+        // Issue #4
+        assertEquals("20", calc("(2+3)×4"))
+        assertEquals("14", calc("2×(3+4)"))
+        assertEquals("-5", calc("-(2+3)"))
+        assertEquals("1", calc("(50+50)%"))
+        assertEquals("21", calc("((1+2)×(3+4))"))
+        assertEquals("2", calc("10÷(2+3)"))
+        assertNull(ExactMath.evaluate("(2+3")) // the screen adds the missing ")" first
+        assertNull(ExactMath.evaluate("()"))
+    }
+
+    @Test
     fun hugeAndTinyUseScientific() {
         assertEquals("1E25", calc("10000000000000×1000000000000"))
         assertEquals("1E-7", calc("1÷10000000"))

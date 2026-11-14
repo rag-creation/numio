@@ -80,27 +80,43 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
 
     private fun appendInput(expr: String, label: String): String {
         val last = expr.lastOrNull()?.toString()
+        // After % or ) a new number means multiply: 5%2 → 5%×2, (2+3)4 → (2+3)×4
+        val afterClosed = last == "%" || last == ")"
         return when {
+            label == "()" -> {
+                // One smart key: closes an open bracket after a number, otherwise opens one.
+                // A bracket right after a number multiplies: 2( → 2×(
+                val stillOpen = expr.count { it == '(' } - expr.count { it == ')' }
+                val c = expr.lastOrNull()
+                val afterValue = c != null && (c.isDigit() || c == ')' || c == '%' || c == '.')
+                when {
+                    stillOpen > 0 && afterValue -> expr.trimEnd('.') + ")"
+                    afterValue -> expr.trimEnd('.') + "×("
+                    else -> "$expr("
+                }
+            }
             label in binaryOps -> {
-                if (label == "-" && (last == null || last in setOf("×", "÷", "^"))) {
+                if (label == "-" && (last == null || last in setOf("×", "÷", "^", "("))) {
                     return expr + "-"
                 }
                 val trimmed = expr.trimEnd { it.toString() in binaryOps || it == '.' }
-                if (trimmed.isEmpty()) expr else trimmed + label
+                // Nothing to work on yet: right at the start, or right after "("
+                if (trimmed.isEmpty() || trimmed.last() == '(') expr else trimmed + label
             }
             label == "%" -> {
                 val trimmed = expr.trimEnd { it.toString() in binaryOps || it == '.' }
-                if (trimmed.isEmpty() || trimmed.last() == '%') expr else "$trimmed%"
+                if (trimmed.isEmpty() || trimmed.last() == '%' || trimmed.last() == '(') expr
+                else "$trimmed%"
             }
             label == "." -> {
                 val currentNumber = expr.takeLastWhile { it.isDigit() || it == '.' }
                 when {
                     '.' in currentNumber -> expr
-                    currentNumber.isEmpty() -> expr + (if (last == "%") "×0." else "0.")
+                    currentNumber.isEmpty() -> expr + (if (afterClosed) "×0." else "0.")
                     else -> "$expr."
                 }
             }
-            else -> if (last == "%") "$expr×$label" else expr + label
+            else -> if (afterClosed) "$expr×$label" else expr + label
         }
     }
     fun toggleHistory() {
@@ -130,24 +146,35 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
 
     private fun isCompleteExpression(expr: String): Boolean {
         if (expr.isBlank()) return false
-        val trailingOperator = Regex("[+\\-×÷^]$")
+        val trailingOperator = Regex("[+\\-×÷^(]$")
         return !trailingOperator.containsMatchIn(expr)
+    }
+
+    /** Adds the ")" still missing at the end, so (2+3 can already show 5. */
+    private fun closeBrackets(expr: String): String {
+        val stillOpen = expr.count { it == '(' } - expr.count { it == ')' }
+        return if (stillOpen > 0) expr + ")".repeat(stillOpen) else expr
     }
 
     private fun evaluatePreview(expression: String): String {
         if (!isCompleteExpression(expression)) return ""
-        return calculate(expression) ?: ""
+        return calculate(closeBrackets(expression)) ?: ""
     }
 
     private fun evaluate() {
-        val expression = _uiState.value.expression
-        val resStr = if (isCompleteExpression(expression)) calculate(expression) else null
+        val typed = _uiState.value.expression
+        if (!isCompleteExpression(typed)) {
+            _uiState.value = _uiState.value.copy(result = "Error")
+            return
+        }
+        val expression = closeBrackets(typed)
+        val resStr = calculate(expression)
         if (resStr == null) {
             _uiState.value = _uiState.value.copy(result = "Error")
             return
         }
         justEvaluated = true
-        _uiState.value = _uiState.value.copy(result = resStr)
+        _uiState.value = _uiState.value.copy(expression = expression, result = resStr)
 
         viewModelScope.launch {
             repository.save(expression = expression, result = resStr)

@@ -34,7 +34,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.rr.numio.data.HistoryEntity
 import kotlinx.coroutines.delay
 
-enum class KeyType { NUM, OP, BACKSPACE, CLEAR_ALL, EQUAL }
+enum class KeyType { NUM, OP, BACKSPACE, CLEAR_ALL, EQUAL, BRACKET }
 
 private val NumioBg = Color(0xFF1B1917)
 private val NumioSurface = Color(0xFF3A3733)
@@ -65,7 +65,7 @@ fun CalculatorScreen(
     var lastTapTime by remember { mutableLongStateOf(0L) }
 
     val keys = listOf(
-        listOf("AC" to KeyType.CLEAR_ALL, "C" to KeyType.BACKSPACE, "%" to KeyType.OP, "÷" to KeyType.OP),
+        listOf("AC" to KeyType.CLEAR_ALL, "C" to KeyType.BACKSPACE, "()" to KeyType.BRACKET, "%" to KeyType.OP, "÷" to KeyType.OP),
         listOf("7" to KeyType.NUM, "8" to KeyType.NUM, "9" to KeyType.NUM, "×" to KeyType.OP),
         listOf("4" to KeyType.NUM, "5" to KeyType.NUM, "6" to KeyType.NUM, "-" to KeyType.OP),
         listOf("1" to KeyType.NUM, "2" to KeyType.NUM, "3" to KeyType.NUM, "+" to KeyType.OP)
@@ -322,6 +322,7 @@ private fun CircleKey(
         KeyType.BACKSPACE -> NumioSurface
         KeyType.CLEAR_ALL -> NumioRed
         KeyType.EQUAL -> accentLight
+        KeyType.BRACKET -> NumioSurface
     }
     val contentColor = when (type) {
         KeyType.NUM -> NumioTextOnDark
@@ -329,6 +330,7 @@ private fun CircleKey(
         KeyType.BACKSPACE -> NumioTextOnDark
         KeyType.CLEAR_ALL -> Color.White
         KeyType.EQUAL -> NumioBg
+        KeyType.BRACKET -> accent
     }
     // Bigger labels: AC/⌫ 15 → 18, digits and operators 26 → 32
     val fontSize = (if (label == "AC" || label == "C") 18.sp else 32.sp) * labelScale
@@ -345,7 +347,11 @@ private fun CircleKey(
         contentPadding = PaddingValues(0.dp)
     ) {
         Text(
-            text = if (label == "C") "⌫" else label,
+            text = when (label) {
+                "C" -> "⌫"
+                "()" -> "( )"
+                else -> label
+            },
             fontSize = fontSize,
             fontWeight = fontWeight
         )
@@ -533,17 +539,23 @@ private fun CalcKeypad(
     ) {
         val gap = 12.dp
         // Size keys by width, but cap by height so landscape still fits
+        // The top row has 5 smaller keys (AC ⌫ ( ) % ÷) across the same width as 4 keys:
+        // 5 × small + 4 gaps = 4 × key + 3 gaps, so small = (4 × key − gap) / 5.
+        // Height: small + 4 keys + 4 gaps must fit, which gives the byHeight formula.
         val byWidth = (maxWidth - gap * 3) / 4
-        val byHeight = (maxHeight * heightShare - gap * 4) / 5
+        val byHeight = ((maxHeight * heightShare - gap * 4) * 5 + gap) / 24
         val keySize = minOf(byWidth, byHeight)
+        val smallKeySize = (keySize * 4 - gap) / 5
         // Smaller keys (landscape) get smaller labels, so "AC" and "⌫" aren't clipped
         val labelScale = (keySize / 80.dp).coerceIn(0.45f, 1f)
+        val smallLabelScale = (smallKeySize / 80.dp).coerceIn(0.45f, 1f)
 
         Column(
             verticalArrangement = Arrangement.spacedBy(gap),
             modifier = Modifier.align(Alignment.Center)
         ) {
             keys.forEach { row ->
+                val small = row.size == 5
                 Row(horizontalArrangement = Arrangement.spacedBy(gap)) {
                     row.forEach { (label, type) ->
                         CircleKey(
@@ -551,8 +563,8 @@ private fun CalcKeypad(
                             type = type,
                             accent = accent,
                             accentLight = accentLight,
-                            labelScale = labelScale,
-                            modifier = Modifier.size(keySize),
+                            labelScale = if (small) smallLabelScale else labelScale,
+                            modifier = Modifier.size(if (small) smallKeySize else keySize),
                             onClick = { onKey(label) }
                         )
                     }

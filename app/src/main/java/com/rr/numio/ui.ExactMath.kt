@@ -5,7 +5,7 @@ import java.math.MathContext
 import java.util.Locale
 
 /**
- * Exact maths for what the keypad can type: numbers, + - × ÷ and %.
+ * Exact maths for what the keypad can type: numbers, + - × ÷ % and brackets.
  *
  * exp4j works in Double, which only keeps about 16 digits, so
  * 9007199254740993 − 9007199254740992 came out as 0 instead of 1.
@@ -17,7 +17,7 @@ import java.util.Locale
 internal object ExactMath {
     private val DIVIDE = MathContext.DECIMAL128
     private val HUNDRED = BigDecimal(100)
-    private const val ALLOWED = "0123456789.+-×÷%"
+    private const val ALLOWED = "0123456789.+-×÷%()"
 
     fun evaluate(expression: String): BigDecimal? {
         if (expression.isEmpty() || expression.any { it !in ALLOWED }) return null
@@ -30,7 +30,10 @@ internal object ExactMath {
         }
     }
 
-    /** expression := term (+|- term)* ; term := unary (×|÷ unary)* ; unary := -unary | number %* */
+    /**
+     * expression := term (+|- term)* ; term := unary (×|÷ unary)*
+     * unary := -unary | (number | "(" expression ")") %*
+     */
     private class Parser(private val s: String) {
         private var pos = 0
 
@@ -67,7 +70,15 @@ internal object ExactMath {
                 pos++
                 return unary().negate()
             }
-            var value = number()
+            var value = if (peek() == '(') {
+                pos++
+                val inside = expression()
+                if (peek() != ')') throw NumberFormatException("Missing ) at $pos")
+                pos++
+                inside
+            } else {
+                number()
+            }
             while (peek() == '%') {
                 pos++
                 value = value.divide(HUNDRED, DIVIDE)

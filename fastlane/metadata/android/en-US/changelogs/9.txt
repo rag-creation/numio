@@ -2,3 +2,4 @@
 - Landscape: display and keypad now sit side by side, so the result stays readable with large system fonts
 - Converter: tapping the same input again keeps the result visible above the keyboard
 - Themed icon: Numio now follows your launcher's icon colours (Android 13+)
+- Brackets: a new ( ) key on the top row, so you can choose the order of operations
