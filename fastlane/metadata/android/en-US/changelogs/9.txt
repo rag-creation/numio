@@ -1,6 +1,6 @@
-- Exact maths: big numbers keep every digit (9007199254740993 - 9007199254740992 now gives 1, not 0)
-- Landscape: display and keypad now sit side by side, so the result stays readable with large system fonts
-- Converter: tapping the same input again keeps the result visible above the keyboard
-- Themed icon: Numio now follows your launcher's icon colours (Android 13+)
-- Brackets: a new ( ) key on the top row, so you can choose the order of operations
-- Edit in the middle: tap the sum to put a cursor there, then delete or type to fix a number (faint brackets show what = will close)
+- New ( ) key for brackets
+- Tap the sum to place a cursor and edit in the middle
+- Exact maths: big numbers keep every digit
+- Landscape: display and keys side by side, readable with large fonts
+- Converter: result stays visible above the keyboard
+- Themed icon support (Android 13+)
