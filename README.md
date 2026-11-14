@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/numio-wordmark-dark.png">
+    <img src="docs/numio-wordmark-light.png" alt="Numio" width="420">
+  </picture>
+</p>
+
 # Numio — Calculator App
 
 A clean, minimal, open-source Android calculator app built with Kotlin & Jetpack Compose.
