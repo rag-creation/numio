@@ -19,6 +19,14 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -49,6 +57,7 @@ private val NumioSurface = Color(0xFF3A3733)
 private val NumioRed = Color(0xFFE8452F)
 private val NumioTextMuted = Color(0xFF9C9578)
 private val NumioTextOnDark = Color(0xFFF2EFE9)
+private val NumioSciSurface = Color(0xFF2A2825)
 
 @SuppressLint("UnusedBoxWithConstraintsScope")
 @OptIn(ExperimentalMaterial3Api::class)
@@ -71,6 +80,9 @@ fun CalculatorScreen(
 
     var easterEggTapCount by remember { mutableIntStateOf(0) }
     var lastTapTime by remember { mutableLongStateOf(0L) }
+    // The scientific keys hide behind a handle; "2nd" swaps sin/cos/tan, ln/log for their inverses.
+    var panelOpen by rememberSaveable { mutableStateOf(false) }
+    var second by rememberSaveable { mutableStateOf(false) }
 
     val keys = listOf(
         listOf("AC" to KeyType.CLEAR_ALL, "C" to KeyType.BACKSPACE, "()" to KeyType.BRACKET, "%" to KeyType.OP, "÷" to KeyType.OP),
@@ -174,17 +186,36 @@ fun CalculatorScreen(
                     modifier = Modifier.fillMaxSize(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    CalcDisplay(
-                        expression = uiState.expression,
-                        result = uiState.result,
-                        cursor = uiState.cursor,
-                        showCursor = uiState.showCursor,
-                        onTapExpression = { viewModel.moveCursor(it) },
-                        accentLight = accentLight,
+                    // There's room in landscape, so the scientific keys are always shown
+                    Column(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
-                    )
+                    ) {
+                        CalcDisplay(
+                            expression = uiState.expression,
+                            result = uiState.result,
+                            cursor = uiState.cursor,
+                            showCursor = uiState.showCursor,
+                            onTapExpression = { viewModel.moveCursor(it) },
+                            accentLight = accentLight,
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth()
+                        )
+                        SciPanel(
+                            second = second,
+                            degrees = uiState.degrees,
+                            accent = accent,
+                            rowHeight = (maxHeight * 0.13f).coerceIn(28.dp, 40.dp),
+                            onToggleSecond = { second = !second },
+                            onToggleAngle = { viewModel.toggleAngleMode() },
+                            onKey = { viewModel.onKeyPress(it) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 16.dp)
+                        )
+                    }
                     CalcKeypad(
                         keys = keys,
                         accent = accent,
@@ -210,6 +241,29 @@ fun CalculatorScreen(
                             .weight(1f)
                             .fillMaxWidth()
                     )
+                    SciHandle(
+                        open = panelOpen,
+                        accent = accent,
+                        onSetOpen = { panelOpen = it }
+                    )
+                    AnimatedVisibility(
+                        visible = panelOpen,
+                        enter = expandVertically(tween(220)) + fadeIn(tween(220)),
+                        exit = shrinkVertically(tween(180)) + fadeOut(tween(180))
+                    ) {
+                        SciPanel(
+                            second = second,
+                            degrees = uiState.degrees,
+                            accent = accent,
+                            rowHeight = 40.dp,
+                            onToggleSecond = { second = !second },
+                            onToggleAngle = { viewModel.toggleAngleMode() },
+                            onKey = { viewModel.onKeyPress(it) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 8.dp)
+                        )
+                    }
                     CalcKeypad(
                         keys = keys,
                         accent = accent,
@@ -368,6 +422,118 @@ private fun CircleKey(
             },
             fontSize = fontSize,
             fontWeight = fontWeight
+        )
+    }
+}
+
+private class SciKeySpec(val label: String, val highlighted: Boolean, val onClick: () -> Unit)
+
+/** The scientific keys: 5 across, 3 rows. "2nd" swaps in the inverse functions for one key press. */
+@Composable
+private fun SciPanel(
+    second: Boolean,
+    degrees: Boolean,
+    accent: Color,
+    rowHeight: Dp,
+    onToggleSecond: () -> Unit,
+    onToggleAngle: () -> Unit,
+    onKey: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    fun plain(label: String) = SciKeySpec(label, false) { onKey(label) }
+    fun swapped(label: String, inverse: String) = if (second) {
+        SciKeySpec(inverse, false) {
+            onKey(inverse)
+            onToggleSecond()
+        }
+    } else {
+        plain(label)
+    }
+
+    val rows = listOf(
+        listOf(
+            SciKeySpec("2nd", second, onToggleSecond),
+            swapped("sin", "sin⁻¹"),
+            swapped("cos", "cos⁻¹"),
+            swapped("tan", "tan⁻¹"),
+            SciKeySpec(if (degrees) "DEG" else "RAD", false, onToggleAngle)
+        ),
+        listOf(swapped("ln", "eˣ"), swapped("log", "10ˣ"), plain("√"), plain("x²"), plain("xʸ")),
+        listOf(plain("π"), plain("e"), plain("!"), plain("1/x"), plain("|x|"))
+    )
+    Column(
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = modifier
+    ) {
+        rows.forEach { row ->
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                row.forEach { spec ->
+                    SciKey(spec, accent, Modifier.weight(1f).height(rowHeight))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SciKey(spec: SciKeySpec, accent: Color, modifier: Modifier = Modifier) {
+    val isMode = spec.label == "2nd" || spec.label == "DEG" || spec.label == "RAD"
+    val fontScale = LocalDensity.current.fontScale
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(if (spec.highlighted) accent else NumioSciSurface)
+            .clickable(role = Role.Button, onClick = spec.onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = spec.label,
+            color = if (spec.highlighted) NumioBg else if (isMode) accent else NumioTextOnDark,
+            // Keep the label the same size at big system fonts, so "sin⁻¹" is never cut off
+            fontSize = (14f / fontScale.coerceAtLeast(1f)).sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            softWrap = false
+        )
+    }
+}
+
+/** Tap, or swipe up or down, to show or hide the scientific keys. */
+@Composable
+private fun SciHandle(open: Boolean, accent: Color, onSetOpen: (Boolean) -> Unit) {
+    val label = if (open) "Hide scientific keys" else "Show scientific keys"
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(28.dp)
+            .semantics {
+                contentDescription = label
+                role = Role.Button
+                onClick(label = label) {
+                    onSetOpen(!open)
+                    true
+                }
+            }
+            .pointerInput(open) { detectTapGestures { onSetOpen(!open) } }
+            .pointerInput(open) {
+                var total = 0f
+                detectVerticalDragGestures(
+                    onDragStart = { total = 0f },
+                    onDragEnd = {
+                        if (total < -24f) onSetOpen(true) else if (total > 24f) onSetOpen(false)
+                    }
+                ) { _, delta -> total += delta }
+            },
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(width = 40.dp, height = 4.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(if (open) accent else NumioTextMuted.copy(alpha = 0.6f))
         )
     }
 }
