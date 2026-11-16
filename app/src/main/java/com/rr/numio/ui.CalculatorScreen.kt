@@ -182,6 +182,7 @@ fun CalculatorScreen(
                 .fillMaxWidth()
         ) {
             if (maxWidth > maxHeight) {
+                val sciRowHeight = (maxHeight * 0.13f).coerceIn(28.dp, 40.dp)
                 Row(
                     modifier = Modifier.fillMaxSize(),
                     horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -207,7 +208,7 @@ fun CalculatorScreen(
                             second = second,
                             degrees = uiState.degrees,
                             accent = accent,
-                            rowHeight = (maxHeight * 0.13f).coerceIn(28.dp, 40.dp),
+                            rowHeight = sciRowHeight,
                             onToggleSecond = { second = !second },
                             onToggleAngle = { viewModel.toggleAngleMode() },
                             onKey = { viewModel.onKeyPress(it) },
