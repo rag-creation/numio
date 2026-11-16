@@ -256,7 +256,7 @@ fun CalculatorScreen(
                             second = second,
                             degrees = uiState.degrees,
                             accent = accent,
-                            rowHeight = 40.dp,
+                            rowHeight = 44.dp,
                             onToggleSecond = { second = !second },
                             onToggleAngle = { viewModel.toggleAngleMode() },
                             onKey = { viewModel.onKeyPress(it) },
@@ -269,7 +269,8 @@ fun CalculatorScreen(
                         keys = keys,
                         accent = accent,
                         accentLight = NumioYellowLight,
-                        heightShare = 0.65f,
+                        // With the panel open the display gives up space so the keys keep their size
+                        heightShare = if (panelOpen) 0.75f else 0.65f,
                         onKey = { viewModel.onKeyPress(it) },
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -472,7 +473,12 @@ private fun SciPanel(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 row.forEach { spec ->
-                    SciKey(spec, accent, Modifier.weight(1f).height(rowHeight))
+                    SciKey(
+                        spec = spec,
+                        accent = accent,
+                        labelSize = (rowHeight.value * 0.42f).coerceIn(12f, 19f),
+                        modifier = Modifier.weight(1f).height(rowHeight)
+                    )
                 }
             }
         }
@@ -480,7 +486,7 @@ private fun SciPanel(
 }
 
 @Composable
-private fun SciKey(spec: SciKeySpec, accent: Color, modifier: Modifier = Modifier) {
+private fun SciKey(spec: SciKeySpec, accent: Color, labelSize: Float, modifier: Modifier = Modifier) {
     val isMode = spec.label == "2nd" || spec.label == "DEG" || spec.label == "RAD"
     val fontScale = LocalDensity.current.fontScale
     Box(
@@ -494,7 +500,7 @@ private fun SciKey(spec: SciKeySpec, accent: Color, modifier: Modifier = Modifie
             text = spec.label,
             color = if (spec.highlighted) NumioBg else if (isMode) accent else NumioTextOnDark,
             // Keep the label the same size at big system fonts, so "sin⁻¹" is never cut off
-            fontSize = (14f / fontScale.coerceAtLeast(1f)).sp,
+            fontSize = (labelSize / fontScale.coerceAtLeast(1f)).sp,
             fontWeight = FontWeight.Medium,
             maxLines = 1,
             softWrap = false
