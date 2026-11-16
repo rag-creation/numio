@@ -41,6 +41,7 @@ No ads. No tracking. No internet permission. Just a calculator.
 
 - ✅ Clean, minimal calculator with retro circular keys
 - ✅ Live results — see the answer as you type
+- ✅ Scientific keys behind a slide-up handle — sin, cos, tan (and inverses), ln, log, √, powers, π, e, factorial, DEG/RAD
 - ✅ Scrollable expression display — no more truncated numbers
 - ✅ Calculation history saved locally with Room database
 - ✅ Unit Converter — Length, Weight, Area, Volume, Temperature, Time, Speed, Pressure

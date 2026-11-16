@@ -4,6 +4,7 @@ Features:
 
 * Clean, minimal design with retro circular keys
 * Live results — see the answer as you type
+* Scientific keys behind a slide-up handle — sin, cos, tan, ln, log, √, powers, π, e, factorial, DEG/RAD
 * Scrollable expression display, so long numbers are never truncated
 * Calculation history saved locally with a Room database
 * Built-in unit converter — Length, Weight, Area, Volume, Temperature, Time, Speed, Pressure

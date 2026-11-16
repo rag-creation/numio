@@ -1,0 +1,3 @@
+- Scientific keys: swipe up the handle for sin, cos, tan (2nd for inverses), ln, log, √, x², xʸ, π, e, !, 1/x, |x| and DEG/RAD
+- Functions go in and out in one tap with ⌫
+- Always shown in landscape
