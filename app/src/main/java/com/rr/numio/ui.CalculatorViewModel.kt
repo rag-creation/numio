@@ -14,11 +14,21 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import net.objecthunter.exp4j.ExpressionBuilder
-import net.objecthunter.exp4j.function.Function
 
-private val sqrtFunction = object : Function("sqrt", 1) {
-    override fun apply(vararg args: Double): Double = kotlin.math.sqrt(args[0])
-}
+/** What each scientific key types. A function key types its name and an opening bracket. */
+private val FUNCTION_KEYS = mapOf(
+    "sin" to "sin(", "cos" to "cos(", "tan" to "tan(",
+    "sin⁻¹" to "sin⁻¹(", "cos⁻¹" to "cos⁻¹(", "tan⁻¹" to "tan⁻¹(",
+    "ln" to "ln(", "log" to "log(", "√" to "√(", "|x|" to "abs(",
+    "eˣ" to "e^(", "10ˣ" to "10^(", "1/x" to "1÷("
+)
+
+/** Function names the cursor treats as one piece: ⌫ deletes all of "sin(", taps can't land inside it. */
+private val FUNCTION_NAMES = listOf("sin⁻¹(", "cos⁻¹(", "tan⁻¹(", "sin(", "cos(", "tan(", "ln(", "log(", "abs(", "√(")
+
+/** Characters that mean the old exp4j fallback can't be trusted (it would work in radians). */
+private fun hasScientificSymbols(expression: String) =
+    expression.any { it in 'a'..'z' || it == 'π' || it == '√' || it == '²' || it == '!' }
 
 data class CalculatorUiState(
     val expression: String = "",
@@ -27,6 +37,8 @@ data class CalculatorUiState(
     val cursor: Int = 0,
     /** True after tapping the expression: the cursor stays visible (even at the end) until = or AC. */
     val showCursor: Boolean = false,
+    /** True: sin, cos and tan work in degrees; false: in radians. */
+    val degrees: Boolean = true,
     val isHistoryVisible: Boolean = false,
     val isEasterEggVisible: Boolean = false
 )
@@ -50,7 +62,8 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
 
     private val operators = setOf("+", "-", "×", "÷", "^", "%")
 
-    fun onKeyPress(label: String) {
+    fun onKeyPress(key: String) {
+        val label = if (key == "xʸ") "^" else key
         val current = _uiState.value
         val cursor = current.cursor.coerceIn(0, current.expression.length)
         // Keys work on the text left of the cursor; the text right of it stays as it is.
@@ -63,7 +76,9 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
             }
             "C" -> {
                 justEvaluated = false
-                val newBefore = before.dropLast(1)
+                // A function like "sin(" goes in one tap
+                val cut = FUNCTION_NAMES.firstOrNull { before.endsWith(it) }?.length ?: 1
+                val newBefore = before.dropLast(cut)
                 val newExpr = newBefore + after
                 _uiState.value = current.copy(
                     expression = newExpr,
@@ -73,7 +88,8 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
             }
             "=" -> evaluate()
             else -> {
-                val isOperator = label in operators
+                // x² and ! carry on from the last answer, like an operator
+                val isOperator = label in operators || label == "x²" || label == "!"
                 val (base, rest) = when {
                     justEvaluated && isOperator ->
                         (if (current.result.isNotEmpty() && current.result != "Error") current.result
@@ -107,7 +123,7 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
     /** Tapping the expression puts the cursor there, to fix or add a number in the middle. */
     fun moveCursor(position: Int) {
         val current = _uiState.value
-        val newCursor = position.coerceIn(0, current.expression.length)
+        val newCursor = snapOutOfFunction(current.expression, position.coerceIn(0, current.expression.length))
         if (newCursor == current.cursor && current.showCursor && !justEvaluated) return
         justEvaluated = false
         _uiState.value = current.copy(
@@ -117,19 +133,54 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
         )
     }
 
+    /** A tap in the middle of "sin(" moves to the nearer side of it, so a function is never split. */
+    private fun snapOutOfFunction(expression: String, position: Int): Int {
+        var i = 0
+        while (i < expression.length) {
+            val name = FUNCTION_NAMES.firstOrNull { expression.startsWith(it, i) }
+            if (name == null) {
+                i++
+                continue
+            }
+            val end = i + name.length
+            if (position > i && position < end) return if (position - i < end - position) i else end
+            i = end
+        }
+        return position
+    }
+
+    fun toggleAngleMode() {
+        val current = _uiState.value
+        val switched = current.copy(degrees = !current.degrees)
+        _uiState.value = switched.copy(result = evaluatePreview(current.expression, switched.degrees))
+    }
+
     private val binaryOps = setOf("+", "-", "×", "÷", "^")
 
     private fun appendInput(expr: String, label: String): String {
         val last = expr.lastOrNull()?.toString()
         // After % or ) a new number means multiply: 5%2 → 5%×2, (2+3)4 → (2+3)×4
-        val afterClosed = last == "%" || last == ")"
+        // The same after π, e, ² and !
+        val afterClosed = last == "%" || last == ")" || last == "π" || last == "e" || last == "²" || last == "!"
         return when {
+            label in FUNCTION_KEYS || label == "π" || label == "e" -> {
+                // Right after a value, a function or constant multiplies: 2π → 2×π, 3sin( → 3×sin(
+                val text = FUNCTION_KEYS[label] ?: label
+                val t = expr.trimEnd('.')
+                val afterValue = t.lastOrNull()?.let { it.isDigit() || it in ")%πe²!" } == true
+                if (afterValue) "$t×$text" else expr + text
+            }
+            label == "x²" || label == "!" -> {
+                val t = expr.trimEnd('.')
+                val afterValue = t.lastOrNull()?.let { it.isDigit() || it in ")%πe²!" } == true
+                if (afterValue) t + (if (label == "x²") "²" else "!") else expr
+            }
             label == "()" -> {
                 // One smart key: closes an open bracket after a number, otherwise opens one.
                 // A bracket right after a number multiplies: 2( → 2×(
                 val stillOpen = expr.count { it == '(' } - expr.count { it == ')' }
                 val c = expr.lastOrNull()
-                val afterValue = c != null && (c.isDigit() || c == ')' || c == '%' || c == '.')
+                val afterValue = c != null && (c.isDigit() || c in ").%πe²!")
                 when {
                     stillOpen > 0 && afterValue -> expr.trimEnd('.') + ")"
                     afterValue -> expr.trimEnd('.') + "×("
@@ -193,7 +244,7 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
         if (trailingOperator.containsMatchIn(expr)) return false
         // Editing in the middle can leave broken spots, like deleting the 1 in 45-1+124
         // gives 45-+124. Show no answer until it's fixed, instead of a wrong one.
-        if (expr.first() in "+×÷^%)") return false
+        if (expr.first() in "+×÷^%)²!") return false
         for (i in 1 until expr.length) {
             val a = expr[i - 1]
             val b = expr[i]
@@ -203,7 +254,7 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
                 b in "+×÷^" && (aIsOp || a == '(') -> return false
                 b == '-' && a in "+-" -> return false
                 // % or ) right after a sign or "("
-                (b == '%' || b == ')') && (aIsOp || a == '(') -> return false
+                b in "%)²!" && (aIsOp || a == '(') -> return false
             }
         }
         return true
@@ -215,9 +266,9 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
         return if (stillOpen > 0) expr + ")".repeat(stillOpen) else expr
     }
 
-    private fun evaluatePreview(expression: String): String {
+    private fun evaluatePreview(expression: String, degrees: Boolean = _uiState.value.degrees): String {
         if (!isCompleteExpression(expression)) return ""
-        return calculate(closeBrackets(expression)) ?: ""
+        return calculate(closeBrackets(expression), degrees) ?: ""
     }
 
     private fun evaluate() {
@@ -227,7 +278,7 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
             return
         }
         val expression = closeBrackets(typed)
-        val resStr = calculate(expression)
+        val resStr = calculate(expression, _uiState.value.degrees)
         if (resStr == null) {
             _uiState.value = _uiState.value.copy(result = "Error")
             return
@@ -250,17 +301,17 @@ class CalculatorViewModel(application: Application) : AndroidViewModel(applicati
      * Keypad maths is done exactly (see [ExactMath]); exp4j is only the fallback,
      * e.g. for a result like 1.5E20 reused from history.
      */
-    private fun calculate(expression: String): String? {
-        ExactMath.evaluate(expression)?.let { return formatExact(it) }
+    private fun calculate(expression: String, degrees: Boolean): String? {
+        ExactMath.evaluate(expression, degrees)?.let { return formatExact(it) }
+        // Anything with sin, ln, π and so on that ExactMath refused is an error, not a job for exp4j
+        if (hasScientificSymbols(expression)) return null
         return try {
             val sanitized = expression
                 .replace("×", "*")
                 .replace("÷", "/")
                 .replace("%", "/100")
-                .replace(Regex("√(\\d+(\\.\\d+)?)"), "sqrt($1)")
 
             val res = ExpressionBuilder(sanitized)
-                .function(sqrtFunction)
                 .build()
                 .evaluate()
 
