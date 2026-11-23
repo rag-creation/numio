@@ -227,6 +227,10 @@ fun SettingsScreen(
                     .padding(20.dp)
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    OfficialWordmark(dark = true, modifier = Modifier.height(28.dp))
+
+                    HorizontalDivider(color = NumioTextMuted.copy(alpha = 0.2f))
+
                     // Version
                     Row(
                         modifier = Modifier.fillMaxWidth(),
